@@ -78,7 +78,7 @@ Result OpalMbr::writeMbrData(const std::string& admin1Password,
 
 Result OpalMbr::readMbrData(const std::string& admin1Password,
                               Bytes& data, uint64_t offset,
-                              uint64_t length) {
+                              uint64_t /*length*/) {
     OpalSession session(transport_, comId_);
     auto r = session.openLockingSessionAsAdmin(admin1Password);
     if (r.failed()) return r;

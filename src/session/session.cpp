@@ -156,7 +156,7 @@ Result Session::closeSession() {
 
     // Send, but don't fail hard if close doesn't work
     Bytes recvTokens;
-    auto r = sendRecv(sendData, recvTokens);
+    (void)sendRecv(sendData, recvTokens);
 
     state_ = State::Closed;
     tsn_ = 0;
@@ -216,7 +216,7 @@ Result Session::sendRaw(const Bytes& comPacketData) {
                                ByteSpan(comPacketData.data(), comPacketData.size()));
 }
 
-Result Session::recvRaw(Bytes& comPacketData, uint32_t timeoutMs) {
+Result Session::recvRaw(Bytes& comPacketData, uint32_t /*timeoutMs*/) {
     return transport_->ifRecv(PROTOCOL_ID, comId_, comPacketData, maxComPacketSize_);
 }
 

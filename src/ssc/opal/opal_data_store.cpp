@@ -31,7 +31,7 @@ Result OpalDataStore::read(const std::string& password,
                              Bytes& data,
                              uint32_t tableNumber,
                              uint64_t offset,
-                             uint64_t length,
+                             uint64_t /*length*/,
                              uint32_t userId) {
     OpalSession session(transport_, comId_);
     auto r = session.openLockingSessionAsUser(userId, password);

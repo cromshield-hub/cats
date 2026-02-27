@@ -131,7 +131,7 @@ DiscoveryInfo Discovery::buildInfo() const {
     info.primarySsc = detectSsc();
     info.baseComId = baseComId();
 
-    if (auto* tper = dynamic_cast<const TPerFeature*>(findFeature(0x0001))) {
+    if (dynamic_cast<const TPerFeature*>(findFeature(0x0001))) {
         info.tperPresent = true;
     }
 
