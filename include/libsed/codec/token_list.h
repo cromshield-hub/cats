@@ -17,36 +17,33 @@ public:
 
     /// Add a named unsigned integer
     TokenList& addUint(uint32_t name, uint64_t val) {
-        entries_.push_back({name, val, EntryType::Uint});
+        entries_.push_back({name, val, EntryType::Uint, {}});
         return *this;
     }
 
     /// Add a named boolean
     TokenList& addBool(uint32_t name, bool val) {
-        entries_.push_back({name, val ? 1ULL : 0ULL, EntryType::Uint});
+        entries_.push_back({name, val ? 1ULL : 0ULL, EntryType::Uint, {}});
         return *this;
     }
 
     /// Add a named byte array
     TokenList& addBytes(uint32_t name, const Bytes& val) {
-        entries_.push_back({name, 0, EntryType::ByteData});
-        entries_.back().byteData = val;
+        entries_.push_back({name, 0, EntryType::ByteData, val});
         return *this;
     }
 
     /// Add a named string
     TokenList& addString(uint32_t name, const std::string& val) {
         Bytes data(val.begin(), val.end());
-        entries_.push_back({name, 0, EntryType::ByteData});
-        entries_.back().byteData = data;
+        entries_.push_back({name, 0, EntryType::ByteData, data});
         return *this;
     }
 
     /// Add a named UID
     TokenList& addUid(uint32_t name, const Uid& val) {
         Bytes data(val.bytes.begin(), val.bytes.end());
-        entries_.push_back({name, 0, EntryType::ByteData});
-        entries_.back().byteData = data;
+        entries_.push_back({name, 0, EntryType::ByteData, data});
         return *this;
     }
 

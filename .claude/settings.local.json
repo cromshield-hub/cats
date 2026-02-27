@@ -3,7 +3,30 @@
     "allow": [
       "Bash(export TMPDIR=$HOME/tmp && mkdir -p $TMPDIR && mkdir -p build && cd build && cmake .. 2>&1 | tail -30)",
       "Bash(mkdir -p build && cd build && cmake .. 2>&1)",
-      "Bash(TMPDIR=$HOME/.tmp mkdir -p $HOME/.tmp && ls /data/data/com.termux/files/home/workspace/sed/libsed/build/ 2>/dev/null || echo \"build dir check failed\")"
+      "Bash(TMPDIR=$HOME/.tmp mkdir -p $HOME/.tmp && ls /data/data/com.termux/files/home/workspace/sed/libsed/build/ 2>/dev/null || echo \"build dir check failed\")",
+      "Bash(TMPDIR=$HOME/tmp mkdir -p $HOME/tmp && TMPDIR=$HOME/tmp grep -rn \"THIS_SP\\\\|namespace uid\\\\|namespace method\\\\|RANDOM\" /data/data/com.termux/files/home/workspace/sed/libsed/include/ --include=\"*.hpp\" --include=\"*.h\" | head -40)",
+      "Bash(find /data/data/com.termux/files/home/workspace/sed/libsed/include -name \"*.hpp\" -o -name \"*.h\" 2>/dev/null | head -30)",
+      "Bash(TMPDIR=/data/data/com.termux/files/home/tmp ls /data/data/com.termux/files/home/workspace/sed/libsed/include/)",
+      "Bash(export TMPDIR=/data/data/com.termux/files/usr/tmp && grep -rn \"THIS_SP\" /data/data/com.termux/files/home/workspace/sed/libsed/ --include=\"*.h\" --include=\"*.hpp\" --include=\"*.cpp\" 2>/dev/null)",
+      "Bash(TMPDIR=/data/data/com.termux/files/home/tmp grep -rn -E 'MethodCall\\\\s+\\\\w+\\\\s*\\\\\\(\\\\s*Uid\\\\s*\\\\\\(' src/ --include='*.cpp')",
+      "Bash(find /data/data/com.termux/files/home/workspace/sed/libsed/src -name '*.cpp' -type f 2>/dev/null | head -50)",
+      "Bash(HOME=/data/data/com.termux/files/home TMPDIR=/data/data/com.termux/files/home/tmp find /data/data/com.termux/files/home/workspace/sed/libsed/src -name '*.cpp' -type f 2>/dev/null | head -50)",
+      "Bash(cd /data/data/com.termux/files/home/workspace/sed/libsed/build && cmake --build . 2>&1 | tail -100)",
+      "Bash(cd /data/data/com.termux/files/home/workspace/sed/libsed/build && cmake --build . 2>&1)",
+      "Bash(export TMPDIR=$HOME/tmp && mkdir -p $TMPDIR && cd /data/data/com.termux/files/home/workspace/sed/libsed/build && cmake --build . 2>&1)",
+      "Bash(TMPDIR=$HOME/tmp cmake --build /data/data/com.termux/files/home/workspace/sed/libsed/build 2>&1)",
+      "Bash(cd /data/data/com.termux/files/home/workspace/sed/libsed/build && make 2>&1)",
+      "Bash(rm -rf build && mkdir build && cd build && cmake .. 2>&1)",
+      "Bash(TMPDIR=/data/data/com.termux/files/usr/tmp git diff -- src/method/method_call.cpp src/table/table_ops.cpp 2>&1)",
+      "Bash(TMPDIR=/data/data/com.termux/files/home/tmp mkdir -p $TMPDIR && git diff src/method/method_call.cpp src/table/table_ops.cpp 2>&1)",
+      "Bash(TMPDIR=/data/data/com.termux/files/home/workspace/sed/libsed git diff src/method/method_call.cpp src/table/table_ops.cpp 2>&1)",
+      "Bash(export TMPDIR=/data/data/com.termux/files/home/tmp && mkdir -p $TMPDIR && mkdir -p build2 && cd build2 && cmake -DLIBSED_BUILD_TESTS=OFF -DLIBSED_BUILD_EXAMPLES=OFF -DLIBSED_BUILD_TOOLS=OFF .. 2>&1)",
+      "Bash(TMPDIR=$HOME/tmp mkdir -p $HOME/tmp && TMPDIR=$HOME/tmp find . -name \"token_list.h\")",
+      "Bash(export TMPDIR=/data/data/com.termux/files/usr/tmp && ls /data/data/com.termux/files/home/workspace/sed/libsed/src/ /data/data/com.termux/files/home/workspace/sed/libsed/include/ 2>/dev/null)",
+      "Bash(TMPDIR=/data/data/com.termux/files/usr/tmp find /data/data/com.termux/files/home/workspace/sed/libsed/src -name \"*.cpp\" -o -name \"*.h\" | sort)",
+      "Bash(cd /data/data/com.termux/files/home/workspace/sed/libsed/build && cmake .. -DCMAKE_CXX_FLAGS=\"-Wunused-parameter\" 2>&1 | tail -5)",
+      "Bash(git rm -r --cached build/)",
+      "Bash(TMPDIR=$HOME/tmp mkdir -p $HOME/tmp && git rm -r --cached build/)"
     ]
   }
 }

@@ -1,1 +1,0 @@
-/data/data/com.termux/files/usr/bin/c++ -O2 -g -DNDEBUG -Xlinker --dependency-file=CMakeFiles/example_eval_fault.dir/link.d CMakeFiles/example_eval_fault.dir/examples/eval_fault_injection.cpp.o -o example_eval_fault  liblibsed.a -lpthread
