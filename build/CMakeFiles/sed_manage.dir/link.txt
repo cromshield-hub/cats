@@ -1,0 +1,1 @@
+/data/data/com.termux/files/usr/bin/c++ -O2 -g -DNDEBUG -Xlinker --dependency-file=CMakeFiles/sed_manage.dir/link.d CMakeFiles/sed_manage.dir/tools/sed_manage.cpp.o -o sed_manage  liblibsed.a -lpthread

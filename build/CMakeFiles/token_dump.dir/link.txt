@@ -1,0 +1,1 @@
+/data/data/com.termux/files/usr/bin/c++ -O2 -g -DNDEBUG -Xlinker --dependency-file=CMakeFiles/token_dump.dir/link.d CMakeFiles/token_dump.dir/tools/token_dump.cpp.o -o token_dump  liblibsed.a -lpthread

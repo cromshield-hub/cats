@@ -1,0 +1,1 @@
+/data/data/com.termux/files/usr/bin/c++ -O2 -g -DNDEBUG -Xlinker --dependency-file=CMakeFiles/example_eval_steps.dir/link.d CMakeFiles/example_eval_steps.dir/examples/eval_step_by_step.cpp.o -o example_eval_steps  liblibsed.a -lpthread

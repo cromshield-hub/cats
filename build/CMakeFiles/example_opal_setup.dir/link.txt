@@ -1,0 +1,1 @@
+/data/data/com.termux/files/usr/bin/c++ -O2 -g -DNDEBUG -Xlinker --dependency-file=CMakeFiles/example_opal_setup.dir/link.d CMakeFiles/example_opal_setup.dir/examples/opal_setup.cpp.o -o example_opal_setup  liblibsed.a -lpthread

@@ -1,0 +1,1 @@
+/data/data/com.termux/files/usr/bin/c++ -O2 -g -DNDEBUG -Xlinker --dependency-file=CMakeFiles/example_eval_full.dir/link.d CMakeFiles/example_eval_full.dir/examples/eval_full_demo.cpp.o -o example_eval_full  liblibsed.a -lpthread

@@ -1,0 +1,1 @@
+/data/data/com.termux/files/usr/bin/c++ -O2 -g -DNDEBUG -Xlinker --dependency-file=CMakeFiles/example_enterprise.dir/link.d CMakeFiles/example_enterprise.dir/examples/enterprise_band.cpp.o -o example_enterprise  liblibsed.a -lpthread

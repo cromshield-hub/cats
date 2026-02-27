@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(export TMPDIR=$HOME/tmp && mkdir -p $TMPDIR && mkdir -p build && cd build && cmake .. 2>&1 | tail -30)",
+      "Bash(mkdir -p build && cd build && cmake .. 2>&1)",
+      "Bash(TMPDIR=$HOME/.tmp mkdir -p $HOME/.tmp && ls /data/data/com.termux/files/home/workspace/sed/libsed/build/ 2>/dev/null || echo \"build dir check failed\")"
+    ]
+  }
+}
