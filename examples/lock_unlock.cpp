@@ -9,6 +9,18 @@ void printUsage(const char* prog) {
     std::cerr << "Usage: " << prog << " <device> <lock|unlock> <password> [range_id] [user_id]\n";
 }
 
+/// @scenario Opal 드라이브의 잠금 및 잠금 해제 작업
+/// @precondition Opal 2.0 설정 완료 (소유권 확보, Locking SP 활성화, Admin1 비밀번호 설정됨)
+/// @steps
+///   1. 커맨드 라인에서 장치 경로, 액션(lock/unlock), 비밀번호 파싱
+///   2. Transport 열기 및 고수준 API를 통한 세션 시작
+///   3. lock 시: Global Range ReadLocked=true, WriteLocked=true 설정
+///      unlock 시: Global Range ReadLocked=false, WriteLocked=false 설정
+///   4. Range 정보 조회하여 현재 잠금 상태 출력
+/// @expected
+///   - lock 액션: ReadLocked=true, WriteLocked=true로 전환
+///   - unlock 액션: ReadLocked=false, WriteLocked=false로 전환
+///   - 잘못된 액션 입력 시 사용법 출력
 int main(int argc, char* argv[]) {
     if (argc < 4) { printUsage(argv[0]); return 1; }
 

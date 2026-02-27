@@ -37,6 +37,17 @@ using namespace libsed::eval;
 //  Simulated libnvme (your actual implementation)
 // ════════════════════════════════════════════════════════
 
+/// @scenario 시뮬레이션 libnvme 구현체 (하드웨어 없이 테스트)
+/// @precondition 없음 (시뮬레이션이므로 실제 NVMe 디바이스 불필요)
+/// @steps
+///   1. SimLibNvme 생성 시 디바이스 경로 저장 및 시뮬레이션 초기화
+///   2. securitySend/securityRecv — NvmeTransport가 내부적으로 호출 (시뮬레이션된 L0 Discovery 응답 반환)
+///   3. identify/getLogPage/getFeature 등 — NVMe Admin 명령 시뮬레이션
+///   4. formatNvm/sanitize 등 — NVMe 관리 명령 시뮬레이션
+/// @expected
+///   - 모든 INvmeDevice 인터페이스 메서드가 ErrorCode::Success 반환
+///   - securityRecv는 48바이트 시뮬레이션 Discovery 응답 반환
+///   - identify는 4096바이트 시뮬레이션 데이터(모델명 포함) 반환
 class SimLibNvme : public INvmeDevice {
 public:
     explicit SimLibNvme(const std::string& path) : path_(path) {
@@ -123,6 +134,14 @@ private:
 //  Worker Base (your platform's abstract worker)
 // ════════════════════════════════════════════════════════
 
+/// @scenario 추상 Worker 인터페이스
+/// @precondition 없음 (추상 클래스)
+/// @steps
+///   1. 서브클래스에서 name() 오버라이드 — Worker 이름 반환
+///   2. 서브클래스에서 execute(libnvme, ctx) 오버라이드 — 실제 작업 수행
+/// @expected
+///   - NVMeThread가 execute()를 호출할 때 libnvme(NVMe 작업용)과 ctx(TCG 작업용)가 전달됨
+///   - Worker는 자체적으로 Transport나 Device를 생성하지 않음 (DI 패턴 준수)
 class Worker {
 public:
     virtual ~Worker() = default;
@@ -140,6 +159,20 @@ public:
 //  NVMeThread (your platform's thread class)
 // ════════════════════════════════════════════════════════
 
+/// @scenario 스레드별 컨텍스트 관리 (libnvme 소유, SedContext 생성)
+/// @precondition 디바이스 경로가 유효해야 함 (SimLibNvme 사용 시 실제 디바이스 불필요)
+/// @steps
+///   1. 생성 시 SimLibNvme(또는 실제 libnvme) 인스턴스 생성 — 스레드별 소유
+///   2. SedContext 생성 — libnvme를 DI하여 Transport + EvalApi + Session 번들
+///   3. addWorker()로 실행할 Worker 등록
+///   4. run() 호출 시:
+///      a. SedContext::initialize() — Discovery 수행 및 ComID 캐시
+///      b. 등록된 Worker를 순차 실행, 각 Worker에 libnvme와 SedContext 전달
+///   5. start()로 별도 std::thread에서 실행 가능
+/// @expected
+///   - 각 NVMeThread가 독립적인 libnvme + SedContext를 소유
+///   - Worker들이 순차 실행되며 각각 PASS/FAIL 결과 출력
+///   - 스레드 간 리소스 공유 없이 완전 격리
 class NVMeThread {
 public:
     NVMeThread(const std::string& devicePath, int threadId)
@@ -193,7 +226,16 @@ private:
 //  Concrete Workers (TC developer writes these)
 // ════════════════════════════════════════════════════════
 
-/// Worker 1: Discovery + Feature Check
+/// @scenario Discovery + Feature 확인 Worker
+/// @precondition SedContext가 초기화되어 있어야 함
+/// @steps
+///   1. [TCG] ctx.api().getTcgOption() — SSC 타입 및 ComID 조회
+///   2. [TCG] ctx.api().getAllSecurityFeatures() — 전체 Security Feature 열거
+///   3. [NVMe] libnvme.identify() — NVMe Identify Controller로 모델명 확인
+/// @expected
+///   - TCG 옵션(SSC, ComID) 정상 조회
+///   - Security Feature 목록 정상 반환
+///   - NVMe Identify로 모델명(SimNVMe SSD Model 1234) 출력
 class DiscoveryWorker : public Worker {
 public:
     std::string name() const override { return "DiscoveryWorker"; }
@@ -221,7 +263,19 @@ public:
     }
 };
 
-/// Worker 2: Ownership + Locking Setup
+/// @scenario 소유권 확보 + Locking 설정 Worker
+/// @precondition SedContext가 초기화되어 있고 SID/Admin1 비밀번호가 제공되어야 함
+/// @steps
+///   1. ctx.readMsid() — MSID PIN 읽기 (세션 없이)
+///   2. ctx.takeOwnership(sidPw) — SID 비밀번호로 소유권 확보
+///   3. AdminSP에 SID 인증 세션 열기
+///   4. ctx.api().activate(LockingSP) — Locking SP 활성화
+///   5. 세션 닫기
+/// @expected
+///   - MSID 읽기 성공 (바이트 크기 출력)
+///   - SID 비밀번호 설정(소유권 확보) 성공
+///   - Locking SP 활성화 성공
+///   - Admin1 비밀번호 설정 후 Locking 작업 가능 상태
 class OwnershipWorker : public Worker {
     std::string sidPw_;
     std::string admin1Pw_;
@@ -254,7 +308,21 @@ public:
     }
 };
 
-/// Worker 3: Locking Range Configuration + Lock/Unlock
+/// @scenario Locking Range 설정 + Lock/Unlock Worker
+/// @precondition SedContext가 초기화되어 있고 Admin1 비밀번호로 LockingSP 세션 열기 가능해야 함
+/// @steps
+///   1. LockingSP에 Admin1 인증 세션 열기
+///   2. getLockingInfo(rangeId) — 현재 Range 상태 조회
+///   3. setRange(rangeId, RLE=true, WLE=true) — Range 구성
+///   4. setRangeLock(rangeId, true, true) — Range 잠금
+///   5. getLockingInfo(rangeId) — 잠금 상태 검증
+///   6. setRangeLock(rangeId, false, false) — Range 잠금 해제
+///   7. 세션 닫기
+/// @expected
+///   - Range 설정(ReadLockEnabled, WriteLockEnabled) 성공
+///   - Lock 후 ReadLocked=true, WriteLocked=true 확인
+///   - Unlock 후 정상 해제
+///   - LockOnReset 설정 시에도 정상 동작
 class LockingWorker : public Worker {
     std::string admin1Pw_;
     uint32_t rangeId_;
@@ -298,7 +366,18 @@ public:
     }
 };
 
-/// Worker 4: NVMe Format + TCG State Verification
+/// @scenario NVMe Format 후 TCG 상태 검증 Worker
+/// @precondition SedContext가 초기화되어 있고 libnvme로 NVMe 명령 수행 가능해야 함
+/// @steps
+///   1. [NVMe] getLogPage(SMART) — Format 전 SMART 데이터 확인
+///   2. [NVMe] formatNvm(nsid=1, lbaf=0, ses=1) — User Data Erase 포맷 수행
+///   3. [TCG] getTcgOption() — Format 후 Discovery 재실행하여 SED 상태 확인
+///   4. [TCG] readMsid() — Format 후 MSID 읽기 가능 여부 확인
+///   5. [NVMe] getLogPage(SMART) — Format 후 SMART 데이터 확인
+/// @expected
+///   - Format 전후 SMART 데이터 정상 수신
+///   - Format 후 Discovery 재실행 시 SED 상태(locking, locked) 정상 확인
+///   - Format 후에도 MSID 읽기 가능
 class FormatRecoveryWorker : public Worker {
     std::string sidPw_;
 public:
@@ -336,7 +415,19 @@ public:
     }
 };
 
-/// Worker 5: DataStore I/O
+/// @scenario DataStore 입출력 Worker
+/// @precondition SedContext가 초기화되어 있고 Admin1 비밀번호로 LockingSP 세션 열기 가능해야 함
+/// @steps
+///   1. LockingSP에 Admin1 인증 세션 열기
+///   2. getByteTableInfo() — DataStore 테이블 속성(maxSize, usedSize) 조회
+///   3. tcgWriteDataStore(offset=0, 8바이트) — 테스트 패턴 기록
+///   4. tcgReadDataStore(offset=0, 8바이트) — 기록한 데이터 읽기
+///   5. tcgCompare(TABLE_DATASTORE, offset=0) — Write한 패턴과 비교
+///   6. 세션 닫기
+/// @expected
+///   - Write 성공 후 Read 결과가 8바이트 반환됨
+///   - Compare 결과 match=true (기록한 데이터와 일치)
+///   - DataStore max/used 크기 정상 출력
 class DataStoreWorker : public Worker {
     std::string admin1Pw_;
 public:
@@ -374,7 +465,19 @@ public:
     }
 };
 
-/// Worker 6: Dual Session (AdminSP + LockingSP)
+/// @scenario 이중 세션 Worker (AdminSP + LockingSP)
+/// @precondition SedContext가 초기화되어 있고 SID 및 Admin1 비밀번호가 유효해야 함
+/// @steps
+///   1. ctx.openSession(AdminSP, SID) — 메인 세션으로 AdminSP 열기
+///   2. ctx.createAndOpenSession(LockingSP, Admin1) — 보조 세션으로 LockingSP 열기
+///   3. [AdminSP] getSpLifecycle(LockingSP) — AdminSP 세션에서 LockingSP Lifecycle 조회
+///   4. [LockingSP] getLockingInfo(0) — LockingSP 세션에서 Global Range 정보 조회
+///   5. 보조 세션(LockingSP) 닫기
+///   6. 메인 세션(AdminSP) 닫기
+/// @expected
+///   - 두 SP에 동시 세션 열기 성공
+///   - AdminSP 세션에서 Lifecycle 조회, LockingSP 세션에서 Locking Info 조회 등 교차 작업 수행
+///   - 각 세션이 독립적으로 동작하며 서로 간섭하지 않음
 class DualSessionWorker : public Worker {
     std::string sidPw_;
     std::string admin1Pw_;

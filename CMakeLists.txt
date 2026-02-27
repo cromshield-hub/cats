@@ -186,6 +186,7 @@ if(LIBSED_BUILD_EXAMPLES)
     add_executable(example_eval_full    examples/eval_full_demo.cpp)
     add_executable(example_eval_multi   examples/eval_multi_session.cpp)
     add_executable(example_eval_worker  examples/eval_worker_pattern.cpp)
+    add_executable(example_eval_reset   examples/eval_reset_scenarios.cpp)
 
     target_link_libraries(example_opal_setup    PRIVATE libsed)
     target_link_libraries(example_lock_unlock   PRIVATE libsed)
@@ -197,6 +198,7 @@ if(LIBSED_BUILD_EXAMPLES)
     target_link_libraries(example_eval_full     PRIVATE libsed)
     target_link_libraries(example_eval_multi    PRIVATE libsed Threads::Threads)
     target_link_libraries(example_eval_worker   PRIVATE libsed Threads::Threads)
+    target_link_libraries(example_eval_reset    PRIVATE libsed Threads::Threads)
 endif()
 
 # ══════════════════════════════════════════════════════

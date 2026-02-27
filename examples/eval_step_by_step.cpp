@@ -25,7 +25,20 @@ void dumpHex(const Bytes& data, size_t maxBytes = 64) {
     std::cout << std::dec << "\n";
 }
 
-/// Manual step-by-step evaluation
+/// @scenario 수동 단계별 TCG 프로토콜 평가
+/// @precondition NVMe 디바이스가 열려 있고 TCG SED를 지원해야 함
+/// @steps
+///   1. Discovery(raw) — Level 0 Discovery 원시 바이너리 응답 수신
+///   2. Discovery(parsed) — Level 0 Discovery 파싱하여 SSC 타입, ComID, Locking 상태 확인
+///   3. Properties — Host/TPer 속성 교환 (MaxComPacketSize 등)
+///   4. StartSession(AdminSP, RO, Anybody) — 인증 없이 AdminSP 읽기 전용 세션 시작
+///   5. GetCPIN(MSID) — C_PIN 테이블에서 MSID PIN 읽기
+///   6. CloseSession — 세션 종료
+///   7. Discovery(잘못된 ProtocolID) — 잘못된 Protocol ID(0x05)로 Discovery 시도 (네거티브 테스트)
+/// @expected
+///   - 각 단계 성공하며 원시 페이로드(rawSendPayload/rawRecvPayload) 검증 가능
+///   - MSID PIN이 정상적으로 읽힘
+///   - 잘못된 Protocol ID는 에러 반환 또는 빈 응답
 void manualStepByStep(const std::string& device) {
     std::cout << "\n=== Manual Step-by-Step Eval ===\n";
 
@@ -103,7 +116,18 @@ void manualStepByStep(const std::string& device) {
     dumpHex(badDiscovery);
 }
 
-/// Step-by-step with fault injection between steps
+/// @scenario Fault 주입을 포함한 단계별 평가
+/// @precondition TestContext가 활성화되어 있고 NVMe 디바이스가 열려 있어야 함
+/// @steps
+///   1. TestContext 활성화 및 TestSession 생성
+///   2. FaultBuilder로 AfterIfRecv 시점에 SyncSession 응답 바이트 12를 0xFF로 손상 주입 설정
+///   3. Discovery 수행 (Fault 아직 미발동)
+///   4. StartSession 호출 — SyncSession 응답이 손상된 상태로 수신
+///   5. 트레이스 로그 확인
+/// @expected
+///   - Fault 주입으로 SyncSession 응답 파싱 실패
+///   - StartSession 결과가 에러 코드 반환
+///   - 트레이스에 Fault 발동 기록 남음
 void faultInjectedEval(const std::string& device) {
     std::cout << "\n=== Fault-Injected Step-by-Step Eval ===\n";
 
@@ -143,7 +167,17 @@ void faultInjectedEval(const std::string& device) {
     tc.disable();
 }
 
-/// Use the step observer to log each step of ownership
+/// @scenario 관찰자 콜백을 사용한 소유권 확보 시퀀스
+/// @precondition NVMe 디바이스가 열려 있고 Discovery가 성공해야 함
+/// @steps
+///   1. Discovery로 ComID 획득
+///   2. takeOwnershipStepByStep 호출 시 observer 콜백 전달
+///   3. 각 내부 단계(MSID 읽기, SID 설정 등)마다 observer가 호출됨
+///   4. observer는 단계 이름, transportError, protocolError를 로깅
+/// @expected
+///   - 각 단계마다 observer 콜백이 호출되어 진행 상황 추적 가능
+///   - 소유권 확보 시퀀스가 정상 완료
+///   - observer가 false를 반환하면 중단 가능 (본 예제에서는 항상 true 반환)
 void observedOwnership(const std::string& device) {
     std::cout << "\n=== Observed Ownership Sequence ===\n";
 

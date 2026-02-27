@@ -4,6 +4,18 @@
 #include <libsed/sed_library.h>
 #include <iostream>
 
+/// @scenario Enterprise SSC 드라이브의 Band 관리 (잠금/해제/정보 조회)
+/// @precondition Enterprise SSC 지원 드라이브, BandMaster 비밀번호 설정됨
+/// @steps
+///   1. 커맨드 라인에서 장치 경로, Band ID, 액션(lock/unlock/info), 비밀번호 파싱
+///   2. Transport 열기 및 Enterprise SSC 타입 확인
+///   3. lock 시: 지정된 Band의 ReadLocked/WriteLocked=true 설정
+///      unlock 시: 지정된 Band의 ReadLocked/WriteLocked=false 설정
+///      info 시: Band의 Start, Length, Locked 상태 출력
+/// @expected
+///   - Enterprise SSC가 아닌 경우 에러 메시지 출력
+///   - lock/unlock: Band 잠금 상태 변경 성공
+///   - info: Band 시작 LBA, 길이, 현재 잠금 상태 정상 출력
 int main(int argc, char* argv[]) {
     if (argc < 4) {
         std::cerr << "Usage: " << argv[0] << " <device> <band_id> <password> [lock|unlock|info]\n";

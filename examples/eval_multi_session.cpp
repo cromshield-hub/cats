@@ -42,6 +42,19 @@ static std::mutex g_printMutex;
 //  1. Dual Session: AdminSP + LockingSP simultaneously
 // ════════════════════════════════════════════════════════
 
+/// @scenario 이중 세션 (AdminSP + LockingSP 동시 운용)
+/// @precondition NVMe 디바이스가 열려 있고 SID 및 Admin1 비밀번호가 유효해야 함
+/// @steps
+///   1. Session A: AdminSP에 SID 인증으로 Write 세션 시작
+///   2. Session B: LockingSP에 Admin1 인증으로 Write 세션 시작
+///   3. Session A에서 SP Lifecycle 조회
+///   4. Session B에서 Locking Info(Global Range) 조회
+///   5. 두 세션 모두 활성 상태(active) 확인
+///   6. 두 세션 순차 종료
+/// @expected
+///   - 두 세션이 동시에 활성 상태로 유지됨
+///   - Session A(AdminSP)에서 Lifecycle 조회, Session B(LockingSP)에서 Locking Info 조회 등 교차 작업 정상 수행
+///   - 각 세션의 HSN/TSN이 독립적으로 할당됨
 static void demo_dualSession(EvalApi& api,
                               std::shared_ptr<ITransport> transport,
                               uint16_t comId,
@@ -103,6 +116,17 @@ static void demo_dualSession(EvalApi& api,
 //  2. Multi-threaded: Parallel range query
 // ════════════════════════════════════════════════════════
 
+/// @scenario 멀티스레드 병렬 Range 조회
+/// @precondition NVMe 디바이스가 열려 있고 Admin1 비밀번호가 유효해야 함
+/// @steps
+///   1. numRanges개 스레드 생성
+///   2. 각 스레드가 독립적으로 LockingSP 세션 열기 (Read-only, Admin1 인증)
+///   3. 각 스레드가 자신의 Range ID에 해당하는 Locking Info 조회
+///   4. 모든 스레드 종료 후 성공/실패 카운트 및 소요 시간 출력
+/// @expected
+///   - 각 스레드가 독립 세션으로 병렬 Range 읽기 성공
+///   - 스레드 간 세션 간섭 없음
+///   - 전체 소요 시간이 순차 실행보다 단축됨
 static void demo_parallelRangeQuery(EvalApi& api,
                                      std::shared_ptr<ITransport> transport,
                                      uint16_t comId,
@@ -164,6 +188,20 @@ static void demo_parallelRangeQuery(EvalApi& api,
 //  3. Stress test: Concurrent lock/unlock cycles
 // ════════════════════════════════════════════════════════
 
+/// @scenario 동시 Lock/Unlock 순환 스트레스 테스트
+/// @precondition NVMe 디바이스가 열려 있고 User1 비밀번호가 유효하며 Range 0이 구성되어 있어야 함
+/// @steps
+///   1. numThreads개 스레드 생성
+///   2. 각 스레드가 cyclesPerThread회 반복:
+///      a. LockingSP에 User1 인증으로 Write 세션 열기
+///      b. setRangeLock(0, true, true) — Range 0 잠금
+///      c. setRangeLock(0, false, false) — Range 0 잠금 해제
+///      d. 세션 닫기
+///   3. 전체 성공/실패 카운트, 소요 시간, 처리량(ops/sec) 출력
+/// @expected
+///   - 높은 성공률의 Lock/Unlock 순환
+///   - 처리량(ops/sec) 측정으로 성능 기준선 확보
+///   - 동시 접근에도 프로토콜 오류 없이 안정적 동작
 static void demo_lockUnlockStress(EvalApi& api,
                                    std::shared_ptr<ITransport> transport,
                                    uint16_t comId,
@@ -228,6 +266,19 @@ static void demo_lockUnlockStress(EvalApi& api,
 //  4. NVMe + TCG interleaved operations
 // ════════════════════════════════════════════════════════
 
+/// @scenario NVMe + TCG 인터리브 작업
+/// @precondition NVMe 디바이스가 열려 있고 Admin1 비밀번호가 유효해야 함. DI 패턴 사용 시 INvmeDevice가 주입되어 있어야 함
+/// @steps
+///   1. EvalApi::getNvmeDevice()로 DI된 INvmeDevice 존재 여부 확인
+///   2. [NVMe] Identify Controller — 모델명 파싱
+///   3. [TCG] Discovery — Level 0 Discovery 수행
+///   4. [NVMe] Get Log Page (SMART) — Critical Warning 확인
+///   5. [TCG] 세션 열기 → Locking Info 조회 → 세션 닫기
+///   6. [NVMe] Get Feature (Power Management) — Power State 확인
+/// @expected
+///   - NVMe/TCG 명령이 교차 실행되어도 정상 완료
+///   - DI 패턴으로 동일 디바이스에서 NVMe와 TCG 작업 공존 확인
+///   - DI 미사용 시 API 패턴 안내 메시지 출력
 static void demo_nvmeInterleaved(EvalApi& api,
                                   std::shared_ptr<ITransport> transport,
                                   uint16_t comId,
@@ -307,6 +358,17 @@ static void demo_nvmeInterleaved(EvalApi& api,
 //  5. Session Pool pattern
 // ════════════════════════════════════════════════════════
 
+/// @scenario 세션 풀 패턴 데모
+/// @precondition NVMe 디바이스가 열려 있고 Admin1 비밀번호가 유효해야 함
+/// @steps
+///   1. SessionPool 생성 — poolSize(4)개 세션을 미리 열어 둠
+///   2. 8개 Worker 스레드가 각각 5개 작업을 수행
+///   3. 각 Worker: acquire()로 세션 대여 → getLockingInfo 수행 → release()로 세션 반납
+///   4. 전체 완료 후 총 작업 수 및 소요 시간 출력
+/// @expected
+///   - 다수 Worker(8개)가 제한된 세션(4개)을 공유하여 40개 작업 수행
+///   - 세션 풀이 스레드 안전하게 동작 (acquire/release 경쟁 조건 없음)
+///   - 모든 작업 완료 확인
 class SessionPool {
 public:
     SessionPool(std::shared_ptr<ITransport> transport, uint16_t comId,
@@ -409,6 +471,17 @@ static void demo_sessionPool(std::shared_ptr<ITransport> transport,
 //  6. Concurrent TCG + NVMe on separate threads
 // ════════════════════════════════════════════════════════
 
+/// @scenario 별도 스레드에서 TCG/NVMe 동시 실행
+/// @precondition NVMe 디바이스가 열려 있고 Admin1 비밀번호가 유효해야 함
+/// @steps
+///   1. Thread A (TCG): 10회 반복하여 LockingSP 세션 열기 → Locking Info 조회 → 세션 닫기
+///   2. Thread B (NVMe): 10회 반복하여 SMART Log 또는 raw IF-RECV 수행
+///   3. 두 스레드 동시 실행, 각 반복마다 짧은 대기
+///   4. 두 스레드 모두 완료 후 종료
+/// @expected
+///   - 독립 스레드에서 TCG/NVMe 작업이 간섭 없이 완료
+///   - TCG 스레드와 NVMe 스레드가 동일 디바이스에서 안전하게 공존
+///   - 각 스레드의 반복 횟수가 정상 출력됨
 static void demo_concurrentTcgNvme(EvalApi& api,
                                     std::shared_ptr<ITransport> transport,
                                     uint16_t comId,

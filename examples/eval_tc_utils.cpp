@@ -61,6 +61,16 @@ static void printResult(const std::string& step, Result r) {
 //  1. getTcgOption — Drive capability summary
 // ════════════════════════════════════════════════════════
 
+/// @scenario Discovery 기반 드라이브 기능 요약 조회
+/// @precondition NVMe 디바이스가 열려 있고 Level 0 Discovery가 가능해야 함
+/// @steps
+///   1. api.getTcgOption() 호출로 Discovery 수행 및 TcgOption 구조체 수신
+///   2. SSC 타입, Base ComID, Locking 지원/활성화/잠금 상태 출력
+///   3. MBR 지원/활성화/완료 상태 출력
+///   4. 최대 Locking Admin/User 수, Initial/Reverted PIN 지시자 출력
+/// @expected
+///   - SSC 타입(Opal/Enterprise/Pyrite), ComID, Locking/MBR 상태 등 정상 반환
+///   - TcgOption 구조체의 모든 필드가 유효한 값으로 채워짐
 static void demo_getTcgOption(EvalApi& api, std::shared_ptr<ITransport> transport) {
     std::cout << "\n══════════════════════════════════════════\n";
     std::cout << " 1. getTcgOption — Drive Capability Summary\n";
@@ -91,6 +101,14 @@ static void demo_getTcgOption(EvalApi& api, std::shared_ptr<ITransport> transpor
 //  2. GetClass0SecurityStatus — Feature presence
 // ════════════════════════════════════════════════════════
 
+/// @scenario Feature 존재 여부 플래그 조회
+/// @precondition NVMe 디바이스가 열려 있고 Level 0 Discovery가 가능해야 함
+/// @steps
+///   1. api.getSecurityStatus() 호출
+///   2. SecurityStatus 구조체에서 각 Feature 존재 플래그 확인
+/// @expected
+///   - TPer, Locking, Geometry, Opal v1/v2, Enterprise, Pyrite v1/v2 등 Feature 존재 플래그 정상 반환
+///   - Primary SSC 타입이 올바르게 식별됨
 static void demo_getSecurityStatus(EvalApi& api, std::shared_ptr<ITransport> transport) {
     std::cout << "\n══════════════════════════════════════════\n";
     std::cout << " 2. GetClass0SecurityStatus — Feature Presence\n";
@@ -116,6 +134,16 @@ static void demo_getSecurityStatus(EvalApi& api, std::shared_ptr<ITransport> tra
 //  3. GetSecurityFeatureType — Per-feature details
 // ════════════════════════════════════════════════════════
 
+/// @scenario 전체 Security Feature 열거 및 개별 조회
+/// @precondition NVMe 디바이스가 열려 있고 Level 0 Discovery가 가능해야 함
+/// @steps
+///   1. api.getAllSecurityFeatures() 호출로 전체 Feature 목록 수신
+///   2. 각 Feature의 코드, 이름, 버전, 데이터 길이, ComID, Locking 상태 출력
+///   3. api.getSecurityFeature(0x0002)로 Locking Feature 개별 조회
+/// @expected
+///   - 모든 Feature 목록이 정상 반환됨
+///   - 개별 Feature(Locking) 상세 정보(locked, mbrDone 등) 조회 가능
+///   - Feature가 없는 경우 "Not found" 처리
 static void demo_getSecurityFeatures(EvalApi& api, std::shared_ptr<ITransport> transport) {
     std::cout << "\n══════════════════════════════════════════\n";
     std::cout << " 3. GetSecurityFeatureType — All Features\n";
@@ -167,6 +195,17 @@ static void demo_getSecurityFeatures(EvalApi& api, std::shared_ptr<ITransport> t
 //  4. Split StartSession/SyncSession with REQ+OPT
 // ════════════════════════════════════════════════════════
 
+/// @scenario 분리된 StartSession/SyncSession (REQ+OPT)
+/// @precondition NVMe 디바이스가 열려 있고 유효한 ComID가 있어야 함
+/// @steps
+///   1. Case A: AdminSP, Read-only, Anybody — sendStartSession → recvSyncSession (OPT 필드 없음)
+///   2. Case B: AdminSP, Write, SID Authority + MSID challenge — sendStartSession → recvSyncSession (OPT: hostExchangeAuthority, hostChallenge)
+///   3. Case C: LockingSP, Write, Admin1 — startSyncSession으로 Session 객체 관리 세션 시작
+/// @expected
+///   - Case A: SyncSession 응답에서 HSN/TSN 정상 수신
+///   - Case B: SyncSession 응답에서 HSN/TSN, SP Challenge, Signed Hash 등 OPT 필드 확인
+///   - Case C: Session 객체로 관리되는 세션 정상 열림 및 닫힘
+///   - 각 Case의 Send/Recv 페이로드를 원시 바이트로 검사 가능
 static void demo_splitSession(EvalApi& api,
                                std::shared_ptr<ITransport> transport,
                                uint16_t comId) {
@@ -272,6 +311,14 @@ static void demo_splitSession(EvalApi& api,
 //  5. GetLockingInfo — Read locking range details
 // ════════════════════════════════════════════════════════
 
+/// @scenario Locking Range 상세 정보 조회
+/// @precondition LockingSP에 인증된 세션이 열려 있어야 함
+/// @steps
+///   1. api.getLockingInfo(0)로 Global Range(Range 0) 상세 정보 조회
+///   2. api.getAllLockingInfo(8)로 최대 8개 Range 전체 정보 조회
+/// @expected
+///   - 단일 Range: start, length, ReadLockEnabled, WriteLockEnabled, ReadLocked, WriteLocked, ActiveKey 정상 반환
+///   - 전체 Range: 존재하는 모든 Range의 정보가 벡터로 반환됨
 static void demo_getLockingInfo(EvalApi& api, Session& session) {
     std::cout << "\n══════════════════════════════════════════\n";
     std::cout << " 5. GetLockingInfo — Locking Range Details\n";
@@ -313,6 +360,14 @@ static void demo_getLockingInfo(EvalApi& api, Session& session) {
 //  6. GetByteTableInfo — DataStore table properties
 // ════════════════════════════════════════════════════════
 
+/// @scenario DataStore 테이블 속성 조회
+/// @precondition LockingSP에 인증된 세션이 열려 있어야 함
+/// @steps
+///   1. api.getByteTableInfo() 호출로 DataStore 테이블 속성 조회
+///   2. Table UID, maxSize, usedSize 출력
+/// @expected
+///   - maxSize(최대 크기)와 usedSize(사용 크기)가 정상 반환됨
+///   - Table UID가 유효한 DataStore 테이블 UID임
 static void demo_getByteTableInfo(EvalApi& api, Session& session) {
     std::cout << "\n══════════════════════════════════════════\n";
     std::cout << " 6. GetByteTableInfo — DataStore Properties\n";
@@ -333,6 +388,18 @@ static void demo_getByteTableInfo(EvalApi& api, Session& session) {
 //  7. TcgWrite / TcgRead / TcgCompare — DataStore I/O
 // ════════════════════════════════════════════════════════
 
+/// @scenario DataStore 입출력 작업 (Write/Read/Compare)
+/// @precondition LockingSP에 인증된 세션이 열려 있고 DataStore 테이블에 쓰기 권한이 있어야 함
+/// @steps
+///   1. tcgWriteDataStore로 offset=0에 16바이트 테스트 패턴 기록
+///   2. tcgReadDataStore로 offset=0에서 16바이트 읽기
+///   3. tcgCompare로 offset=32에 8바이트 Write+Read+비교 수행
+///   4. tcgWrite(generic)로 임의 테이블 UID에 offset=64, 4바이트 기록
+///   5. tcgRead(generic)로 offset=64에서 4바이트 읽기
+/// @expected
+///   - Write 성공 후 Read 결과가 기록한 데이터와 일치
+///   - Compare 매치 여부(compareMatch) 정상 확인
+///   - Generic Write/Read도 정상 동작
 static void demo_tcgDataOps(EvalApi& api, Session& session) {
     std::cout << "\n══════════════════════════════════════════\n";
     std::cout << " 7. TcgWrite / TcgRead / TcgCompare\n";
@@ -390,6 +457,15 @@ static void demo_tcgDataOps(EvalApi& api, Session& session) {
 //  8. SetMBRControlTableNsidOne
 // ════════════════════════════════════════════════════════
 
+/// @scenario MBR Control 테이블 NSID=1 설정 및 검증
+/// @precondition LockingSP에 인증된 세션이 열려 있고 MBR Control 테이블 쓰기 권한이 있어야 함
+/// @steps
+///   1. api.setMbrControlNsidOne() 호출로 MBR Control NSID=1 설정
+///   2. tableGetAll(MBRCTRL_SET)로 MBR 상태 검증
+///   3. MBR_ENABLE, MBR_DONE 컬럼 값 확인
+/// @expected
+///   - MBR 상태 변경 성공
+///   - 검증 결과 MBR_ENABLE, MBR_DONE 값이 설정과 일치
 static void demo_setMbrNsidOne(EvalApi& api, Session& session) {
     std::cout << "\n══════════════════════════════════════════\n";
     std::cout << " 8. SetMBRControlTableNsidOne\n";
@@ -419,6 +495,19 @@ static void demo_setMbrNsidOne(EvalApi& api, Session& session) {
 //  9. Full eval flow with fault injection between steps
 // ════════════════════════════════════════════════════════
 
+/// @scenario 분리된 세션 단계 사이 Fault 주입
+/// @precondition TestContext가 활성화 가능하고 NVMe 디바이스가 열려 있어야 함
+/// @steps
+///   1. TestContext 활성화 및 TestSession 생성
+///   2. FaultBuilder로 AfterIfRecv 시점에 SyncSession 응답 바이트 8을 0xFF로 손상 설정
+///   3. sendStartSession으로 StartSession 요청 전송
+///   4. (Send와 Recv 사이 — Fault가 무장되어 다음 IF-RECV 시 발동)
+///   5. recvSyncSession으로 손상된 SyncSession 응답 수신 시도
+///   6. 트레이스 로그 및 카운터 확인
+/// @expected
+///   - SyncSession 응답이 손상되어 ComPacket 파싱 에러 발생
+///   - 트레이스에 Fault 발동 기록이 남음
+///   - transport.recv 카운터로 수신 횟수 확인 가능
 static void demo_faultBetweenSteps(EvalApi& api,
                                     std::shared_ptr<ITransport> transport,
                                     uint16_t comId) {

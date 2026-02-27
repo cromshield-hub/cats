@@ -44,6 +44,23 @@ static const char* sscStr(SscType s) {
 //  Phase 1: No session required
 // ════════════════════════════════════════════════════════
 
+/// @scenario 세션 불필요 작업 전체 데모
+/// @precondition NVMe 디바이스가 열려 있고 TCG SED를 지원해야 함
+/// @steps
+///   1. getTcgOption — Discovery 기반 드라이브 기능 요약 조회
+///   2. getSecurityStatus — Feature 존재 여부 플래그 조회
+///   3. getAllSecurityFeatures — 전체 Security Feature 열거
+///   4. getSecurityFeature(0x0002) — 개별 Locking Feature 조회
+///   5. discovery0Raw — Level 0 Discovery 원시 바이너리 수신
+///   6. discovery0Custom(protocol=0xFF) — 잘못된 Protocol ID 네거티브 테스트
+///   7. rawIfRecv — 원시 IF-RECV 호출
+///   8. hashPassword / hashPasswordPbkdf2 — 비밀번호 해싱 유틸리티
+///   9. stackReset / verifyComId — ComID 유효성 검증
+///   10. verifyAuthority — 인증 자격 확인 (데모에서는 스킵)
+/// @expected
+///   - 모든 비세션 작업이 정상 완료됨
+///   - Discovery, Feature 조회, 해싱 결과가 유효한 값 반환
+///   - 유효한 ComID가 반환되어 후속 세션 작업에 사용 가능
 static uint16_t phase1_noSession(EvalApi& api, std::shared_ptr<ITransport> tr) {
     std::cout << "\n╔══════════════════════════════════════════╗\n";
     std::cout << "║  Phase 1: No Session Required             ║\n";
@@ -132,6 +149,16 @@ static uint16_t phase1_noSession(EvalApi& api, std::shared_ptr<ITransport> tr) {
 //  Phase 2: Split StartSession/SyncSession
 // ════════════════════════════════════════════════════════
 
+/// @scenario 분리된 세션 시작/동기화
+/// @precondition NVMe 디바이스가 열려 있고 유효한 ComID가 있어야 함
+/// @steps
+///   1. Case A: AdminSP, Read-only, Anybody — sendStartSession + recvSyncSession
+///   2. Case B: AdminSP, Write, SID Authority + challenge — sendStartSession + recvSyncSession
+///   3. Case C: LockingSP, Write, Admin1 — startSyncSession으로 Session 객체 관리
+/// @expected
+///   - 3가지 Case 모두 정상 세션 열림
+///   - Case A/B는 HSN/TSN, SP Challenge 등 SyncSession 응답 필드 확인 가능
+///   - Case C는 Session 객체를 통한 세션 라이프사이클(열기/닫기) 정상 동작
 static void phase2_splitSession(EvalApi& api, std::shared_ptr<ITransport> tr, uint16_t comId) {
     std::cout << "\n╔══════════════════════════════════════════╗\n";
     std::cout << "║  Phase 2: Split StartSession/SyncSession  ║\n";
@@ -202,6 +229,31 @@ static void phase2_splitSession(EvalApi& api, std::shared_ptr<ITransport> tr, ui
 //  Phase 3: Session-based operations
 // ════════════════════════════════════════════════════════
 
+/// @scenario 세션 기반 전체 작업 데모 (30+ 작업)
+/// @precondition LockingSP(또는 AdminSP)에 인증된 세션이 열려 있어야 함
+/// @steps
+///   1. Session State 확인 및 타임아웃 설정
+///   2. SP Lifecycle 조회 (getSpLifecycle)
+///   3. Locking Info 조회 (getLockingInfo, getAllLockingInfo)
+///   4. LockOnReset 설정 (setLockOnReset)
+///   5. MBR 상태 조회 및 NSID=1 설정 (getMbrStatus, setMbrControlNsidOne)
+///   6. User 관리 (isUserEnabled, enableUser, setUserPassword, setAdmin1Password, assignUserToRange)
+///   7. Table Next — Authority 행 열거
+///   8. tableGetColumn — 단일 컬럼 읽기
+///   9. C_PIN 시도 횟수 조회 (getCPinTriesRemaining)
+///   10. ByteTable/DataStore 정보 및 I/O (getByteTableInfo, tcgWriteDataStore, tcgReadDataStore, tcgCompare)
+///   11. Generic Table Ops (tableSetUint, tableGet)
+///   12. Crypto Erase (cryptoErase)
+///   13. 난수 생성 (getRandom)
+///   14. Raw Method 전송 (sendRawMethod)
+///   15. ACL 조회 (getAcl)
+///   16. 편의 컬럼 읽기 (tableGetUint, tableGetBool, tableGetBytes)
+///   17. 다중 컬럼 설정 (tableSetMultiUint)
+///   18. Clock 조회, DataStore Table N, ActiveKey, CreateRow/DeleteRow (스킵)
+/// @expected
+///   - SP lifecycle, Locking, MBR, User 관리, Table, Crypto, DataStore 등 모든 작업 정상 실행
+///   - 각 작업의 OK/FAIL 상태 확인 가능
+///   - DataStore Write → Read → Compare 결과 일치
 static void phase3_sessionOps(EvalApi& api, Session& session) {
     std::cout << "\n╔══════════════════════════════════════════╗\n";
     std::cout << "║  Phase 3: Session-Based Operations        ║\n";
@@ -388,6 +440,20 @@ static void phase3_sessionOps(EvalApi& api, Session& session) {
 //  Phase 4: Enterprise-specific (if applicable)
 // ════════════════════════════════════════════════════════
 
+/// @scenario Enterprise SSC 전체 작업 데모
+/// @precondition Enterprise SSC 드라이브에 BandMaster 인증 세션이 열려 있어야 함
+/// @steps
+///   1. configureBand(1) — Band 1 구성 (ReadLockEnabled, WriteLockEnabled 활성화)
+///   2. getBandInfo(1) — Band 1 상세 정보 조회
+///   3. lockBand(1) — Band 1 잠금
+///   4. unlockBand(1) — Band 1 잠금 해제
+///   5. setBandMasterPassword(1) — BandMaster 1 비밀번호 변경
+///   6. eraseBand(1) — Band 1 Crypto Erase
+///   7. setBandLockOnReset(1, true) — Band 1 리셋 시 잠금 설정
+///   8. eraseAllBands — 전체 Band 삭제 (파괴적이므로 스킵)
+/// @expected
+///   - Band 설정, 잠금, 해제, 비밀번호 변경, Erase, LockOnReset 등 모든 Enterprise 작업 정상 실행
+///   - eraseAllBands는 파괴적 작업이므로 실행하지 않고 스킵 확인
 static void phase4_enterprise(EvalApi& api, Session& session) {
     std::cout << "\n╔══════════════════════════════════════════╗\n";
     std::cout << "║  Phase 4: Enterprise SSC Operations       ║\n";
