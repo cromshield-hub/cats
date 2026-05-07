@@ -45,9 +45,20 @@ static bool setupDrive(EvalApi& api, std::shared_ptr<ITransport> transport,
         [&](Session& s) { return api.activate(s, uid::SP_LOCKING); });
     if (r.failed()) return false;
 
-    return composite::withSession(api, transport, comId,
-        uid::SP_LOCKING, true, uid::AUTH_ADMIN1, Bytes{},
-        [&](Session& s) { return api.setAdmin1Password(s, ADMIN1_PW); }).ok();
+    // Activate 직후 Admin1 PIN = MSID 가 보통이지만, 이미 ADMIN1_PW 로 설정된
+    // 드라이브에서도 멱등 재실행 가능해야 하므로 MSID → ADMIN1_PW 폴백.
+    Bytes msid;
+    composite::getMsid(api, transport, comId, msid);
+
+    auto admin1Setup = [&](const Bytes& cred) {
+        return composite::withSession(api, transport, comId,
+            uid::SP_LOCKING, true, uid::AUTH_ADMIN1, cred,
+            [&](Session& s) { return api.setAdmin1Password(s, ADMIN1_PW); });
+    };
+
+    auto r2 = admin1Setup(msid);
+    if (r2.failed()) r2 = admin1Setup(pwBytes(ADMIN1_PW));
+    return r2.ok();
 }
 
 // ── Scenario 1: SedDrive Multiple Login Sessions ──

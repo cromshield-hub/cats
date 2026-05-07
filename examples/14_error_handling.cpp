@@ -80,7 +80,7 @@ static bool scenario2_spDisabled(std::shared_ptr<ITransport> transport,
     // Try to open a session to Locking SP when it's not activated
     Session session(transport, comId);
     StartSessionResult ssr;
-    auto r = api.startSession(session, uid::SP_LOCKING, true, ssr);
+    auto r = api.startSession(session, uid::SP_LOCKING, false, ssr);
 
     // Intent: Manufactured-Inactive 상태의 Locking SP 에 세션 시도 → SPDisabled 가 정답.
     stepExpect(1, "Session to inactive Locking SP", Expect::Failure, r);
@@ -100,7 +100,7 @@ static bool scenario3_invalidParam(std::shared_ptr<ITransport> transport,
     // Open a valid anonymous session
     Session session(transport, comId);
     StartSessionResult ssr;
-    auto r = api.startSession(session, uid::SP_ADMIN, true, ssr);
+    auto r = api.startSession(session, uid::SP_ADMIN, false, ssr);
     if (r.failed()) return false;
 
     // Try to read from a non-existent table row
