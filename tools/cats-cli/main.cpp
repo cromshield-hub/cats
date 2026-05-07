@@ -516,7 +516,7 @@ int eval_tx_start(Context& ctx) {
     if (auto r = drive.query(); r.failed()) return reportResult(ctx, "drive.query", r);
     Session session(ctx.transport, drive.comId());
     StartSessionResult ssr;
-    if (auto r = ctx.api.startSession(session, uid::SP_ADMIN, /*write=*/true, ssr); r.failed())
+    if (auto r = ctx.api.startSession(session, uid::SP_ADMIN, /*write=*/false, ssr); r.failed())
         return reportResult(ctx, "startSession", r);
     RawResult raw;
     ctx.api.startTransaction(session, raw);
