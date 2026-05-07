@@ -151,8 +151,9 @@ static bool scenario2_revert(std::shared_ptr<ITransport> transport,
     // ── Step 2: AdminSP.Revert() ──
     // Intent: AdminSP 를 factory state 로 복원. SID 권한으로 호출 가능
     //         (sedutil --revertTPer 와 동일). (성공이 정답)
-    // 주의: api.revertSP (UID 0x0011) 가 아니라 api.revert (UID 0x0202).
-    //       전자는 PSID 권한 필요.
+    // 주의: AdminSP 의 RevertSP (method UID 0x0011) 가 아닌 Revert
+    //       (UID 0x0202) 를 호출해야 SID 권한으로 통과. RevertSP 는 PSID
+    //       권한이 필요해 SID 세션에서는 NotAuthorized.
     RawResult raw;
     r = api.revert(session, uid::SP_ADMIN, raw);
     stepExpect(2, "AdminSP.Revert() (cred=SID)", Expect::Success, r);
@@ -203,8 +204,8 @@ static bool scenario2_revert(std::shared_ptr<ITransport> transport,
 static bool scenario3_facade(const char* device, cli::CliOptions& opts) {
     scenario(3, "SedDrive One-Liner Ownership");
     printf("  Intent: scenario 1 의 step-by-step 흐름을 SedDrive facade 한 줄로\n");
-    printf("          축약. composite::takeOwnership 으로 라우팅되므로 멱등성과\n");
-    printf("          SpBusy 자동복구를 함께 활용 (commit 5f153a9 / f580e7c).\n\n");
+    printf("          축약. 이미 owned 인 드라이브는 멱등 no-op 으로 처리되며\n");
+    printf("          SpBusy 응답 시 자동 복구.\n\n");
 
     SedDrive drive(device);
     if (opts.dump) drive.enableDump(std::cerr, opts.dumpLevel);
@@ -223,7 +224,7 @@ static bool scenario3_facade(const char* device, cli::CliOptions& opts) {
 
     // ── Step 2: revert ──
     // Intent: 같은 facade 의 revert 로 원복. 내부적으로 AdminSP.Revert()
-    //         (UID 0x0202) 를 SID 권한으로 호출 (commit 2b7d67e). (성공이 정답)
+    //         (UID 0x0202) 를 SID 권한으로 호출. (성공이 정답)
     r = drive.revert(TEST_SID_PW);
     stepExpect(2, "SedDrive::revert() (back to factory)", Expect::Success, r);
 

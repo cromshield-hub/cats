@@ -159,15 +159,16 @@ static bool scenario2_filteringTransport(std::shared_ptr<ITransport> transport) 
 
     EvalApi api;
 
-    // Discovery should work (uses protocol 0x01)
+    // Intent: Discovery 는 protocol 0x01 사용 → 통과 가능. 성공이 정답.
     DiscoveryInfo info;
     auto r = api.discovery0(filtering, info);
-    step(1, "Discovery (proto 0x01) — should work", r);
+    stepExpect(1, "Discovery (proto 0x01)", Expect::Success, r);
 
-    // Stack Reset should fail (uses protocol 0x02)
+    // Intent: StackReset 은 protocol 0x02 사용 → FilteringTransport 가 차단.
+    //         실패가 정답.
     EvalApi stackApi;
     r = stackApi.stackReset(filtering, info.baseComId);
-    step(2, "StackReset (proto 0x02) — should be blocked", r.failed());
+    stepExpect(2, "StackReset (proto 0x02) blocked", Expect::Failure, r);
 
     return true;
 }

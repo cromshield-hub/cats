@@ -60,16 +60,16 @@ static bool scenario1_transportFailure(std::shared_ptr<ITransport> transport,
     auto ruleId = TestContext::instance().armFault(rule);
     printf("    Armed fault rule: %s\n", ruleId.c_str());
 
-    // Try Properties Exchange — should fail due to injected fault
+    // Intent: armFault 가 BeforeIfSend 에 TransportSendFailed 를 박아두었으므로
+    //         이 호출은 실패가 정답.
     PropertiesResult props;
     auto r = api.exchangeProperties(transport, comId, props);
-    step(1, "Properties with injected send failure", r.failed());
-    printf("    Error: %s\n", r.message().c_str());
+    stepExpect(1, "Properties with injected send failure", Expect::Failure, r);
 
-    // Disarm and retry — should succeed now
+    // Intent: disarm 후 재시도 → 정상 동작 복원되어 성공이 정답.
     TestContext::instance().disarmAllFaults();
     r = api.exchangeProperties(transport, comId, props);
-    step(2, "Properties after disarm (should succeed)", r);
+    stepExpect(2, "Properties after disarm", Expect::Success, r);
 
     return true;
 }
@@ -92,11 +92,11 @@ static bool scenario2_corruptPayload(std::shared_ptr<ITransport> transport,
 
     TestContext::instance().armFault(rule);
 
-    // Properties with corrupted payload — TPer should reject
+    // Intent: payload byte 가 변조되어 송출되므로 TPer 가 거부 (또는 parse 실패).
+    //         실패가 정답.
     PropertiesResult props;
     auto r = api.exchangeProperties(transport, comId, props);
-    step(1, "Properties with corrupted payload", r.failed());
-    printf("    Result: %s\n", r.message().c_str());
+    stepExpect(1, "Properties with corrupted payload", Expect::Failure, r);
 
     TestContext::instance().disarmAllFaults();
     return true;
@@ -120,13 +120,15 @@ static bool scenario3_multiFire(std::shared_ptr<ITransport> transport,
 
     TestContext::instance().armFault(rule);
 
+    // Intent: rule 이 처음 2회만 실패시키도록 박혔으므로 — 1·2번째는 실패가 정답,
+    //         3번째는 성공이 정답.
     PropertiesResult props;
     for (int i = 0; i < 3; i++) {
         auto r = api.exchangeProperties(transport, comId, props);
         char label[64];
         snprintf(label, sizeof(label), "Attempt %d", i + 1);
-        step(i + 1, label, r);
-        printf("    %s\n", r.ok() ? "Success" : r.message().c_str());
+        Expect expect = (i < 2) ? Expect::Failure : Expect::Success;
+        stepExpect(i + 1, label, expect, r);
     }
 
     TestContext::instance().disarmAllFaults();

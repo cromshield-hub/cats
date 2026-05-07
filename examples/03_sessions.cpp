@@ -98,21 +98,23 @@ static bool scenario2_authenticatedSession(std::shared_ptr<ITransport> transport
     }
     printHex("MSID", msid);
 
-    // Now open an authenticated write session as SID using MSID.
-    // This only works on factory-state drives (SID == MSID).
-    // If the drive is already owned (SID != MSID), auth fails — that's OK.
+    // Intent: factory state 드라이브에서 MSID 로 SID 인증 — 성공이 정답.
+    //         이미 owned 인 드라이브에서는 NotAuthorized 가 반환되는데, 이건
+    //         시연 환경 한계이므로 test fail 이 아닌 skip 으로 처리.
     Session authSession(transport, comId);
     StartSessionResult ssr2;
     r = api.startSessionWithAuth(authSession, uid::SP_ADMIN, true,
                                   uid::AUTH_SID, msid, ssr2);
     if (r.failed()) {
-        step(3, "SID auth with MSID (drive is owned — skip)", true);
+        printf("  [Step  3] %-40s [%s]\n",
+               "SID auth with MSID — drive owned",
+               "skipped");
         printf("    Drive is already owned (SID != MSID).\n");
         printf("    To test this scenario, revert to factory state first:\n");
         printf("      ./12_factory_reset /dev/nvmeX --force\n");
         return true;
     }
-    step(3, "Open SID-auth write session", r);
+    stepExpect(3, "Open SID-auth write session", Expect::Success, r);
 
     printf("    TSN: %u, HSN: %u (authenticated write session)\n",
            authSession.tperSessionNumber(), authSession.hostSessionNumber());

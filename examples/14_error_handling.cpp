@@ -47,8 +47,8 @@ static bool scenario1_notAuthorized(std::shared_ptr<ITransport> transport,
     auto r = api.startSessionWithAuth(session, uid::SP_ADMIN, true,
                                        uid::AUTH_SID, wrongPw, ssr);
 
-    // Expected: NotAuthorized (0x01)
-    step(1, "SID auth with wrong password", r.failed());
+    // Intent: 잘못된 비번 → NotAuthorized 가 정답.
+    stepExpect(1, "SID auth with WRONG password", Expect::Failure, r);
     printf("    Error code: %d\n", static_cast<int>(r.code()));
     printf("    Message: %s\n", r.message().c_str());
 
@@ -82,8 +82,8 @@ static bool scenario2_spDisabled(std::shared_ptr<ITransport> transport,
     StartSessionResult ssr;
     auto r = api.startSession(session, uid::SP_LOCKING, true, ssr);
 
-    step(1, "Session to inactive Locking SP", r.failed());
-    printf("    Error: %s\n", r.message().c_str());
+    // Intent: Manufactured-Inactive 상태의 Locking SP 에 세션 시도 → SPDisabled 가 정답.
+    stepExpect(1, "Session to inactive Locking SP", Expect::Failure, r);
     printf("    (TPer returns SPDisabled because Locking SP is Manufactured-Inactive)\n");
 
     return r.failed();  // Expected to fail
@@ -104,11 +104,10 @@ static bool scenario3_invalidParam(std::shared_ptr<ITransport> transport,
     if (r.failed()) return false;
 
     // Try to read from a non-existent table row
-    // This should return an error (the specific error depends on the TPer)
+    // Intent: 존재하지 않는 row UID → InvalidParameter 또는 method-level 에러가 정답.
     TableResult tResult;
     r = api.tableGet(session, 0xDEADBEEF00000000ULL, 0, 10, tResult);
-    step(1, "Get on non-existent row", r.failed());
-    printf("    Error: %s\n", r.message().c_str());
+    stepExpect(1, "Get on non-existent row", Expect::Failure, r);
 
     api.closeSession(session);
     return true;
@@ -126,14 +125,15 @@ static bool scenario4_transportErrors() {
     // On Android/non-Linux, transport creation might still succeed
     // but ifSend/ifRecv will fail
     if (transport) {
+        // Intent: 존재하지 않는 디바이스로의 ifRecv → transport-layer 실패가 정답.
         uint8_t buf[512] = {};
         MutableByteSpan span(buf, sizeof(buf));
         size_t received = 0;
         auto r = transport->ifRecv(0x01, 0x0001, span, received);
-        step(1, "ifRecv on bad device", r.failed());
-        printf("    Error: %s\n", r.message().c_str());
+        stepExpect(1, "ifRecv on bad device", Expect::Failure, r);
     } else {
-        step(1, "Transport creation fails for bad path", true);
+        // Intent: 잘못된 경로 → 트랜스포트 생성 자체가 실패하는 것이 정답.
+        step(1, "Transport creation fails for bad path [expect FAIL] PASS", true);
     }
 
     return true;
