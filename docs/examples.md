@@ -176,6 +176,27 @@ auto cr = composite::takeOwnership(api, transport, comId, "Password");
 
 ## 예제별 주의사항
 
+### Step 출력 읽는 법 — Intent-aware reporting
+
+각 example 은 단계별로 의도를 명시한다. 출력 형식 3가지:
+
+| 형식 | 의미 |
+|------|------|
+| `[Step N] description                          OK / FAIL` | positive — IO + method 모두 성공이 정답 |
+| `[Step N] description       [expect OK  ] PASS / FAIL` | positive 인데 의도 명시 |
+| `[Step N] description       [expect FAIL] PASS / FAIL`<br>`           -> rejected as intended: ...` | **negative test** — 거절돼야 PASS |
+
+예시 (`examples/05_take_ownership.cpp` scenario 1 step 6):
+
+```
+[Step  6] Verify OLD MSID is now rejected     [expect FAIL] PASS
+          -> rejected as intended: Method not authorized
+```
+
+→ "옛 MSID 가 거절돼야 take_ownership 이 효과를 본 것" 이므로
+NotAuthorized 가 PASS. step 라벨에 `[expect FAIL]` 가 붙으면 그 단계의
+정답은 실패 응답이라는 뜻.
+
 ### 파괴적 예제 (주의 필요)
 
 - **05_take_ownership**: SID 비밀번호를 변경합니다. 예제 끝에서 자동으로 MSID로 복원합니다.

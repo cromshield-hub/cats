@@ -19,14 +19,29 @@ printf("MSID: %s\n", drive.msidString().c_str());
 
 ---
 
-## 레시피 2: 소유권 확보 (공�� 초기 상태)
+## 레시피 2: 소유권 확보 (공장 초기 상태 / 멱등)
 
 ```cpp
 SedDrive drive("/dev/nvme0");
 drive.query();
 auto r = drive.takeOwnership("my_sid_password");
-if (r.failed()) printf("실패: %s\n", r.message().c_str());
+if (r.failed()) {
+    if (r.code() == ErrorCode::AlreadyOwnedDifferentCredential) {
+        // 이미 다른 비번으로 소유 중. 복구하려면 PSID Revert 필요.
+        printf("이미 다른 비번으로 owned 됨\n");
+    } else {
+        printf("실패: %s\n", r.message().c_str());
+    }
+}
 ```
+
+`takeOwnership` 은 **멱등 (idempotent)**:
+- 공장 상태 → 정상 take_own → `Success`
+- 같은 비번으로 이미 owned → no-op → `Success`
+- 다른 비번으로 owned → `AlreadyOwnedDifferentCredential`
+
+또한 TPer 가 `SpBusy (St=3)` 응답 시 자동으로 StackReset + 50ms 대기 ×
+최대 3회 재시도 (`composite::withSpBusyRetry`).
 
 ---
 
@@ -174,12 +189,26 @@ s.readDataStore(0, 5, readBack);
 SedDrive drive("/dev/nvme0");
 drive.query();
 
-// 방법 1: SID 비밀번호를 아는 경우
+// 방법 1: SID 비밀번호를 아는 경우 — AdminSP.Revert() (UID 0x0202)
 drive.revert("sid_pw");
 
 // 방법 2: 비밀번호 분실 (드라이브 라벨의 PSID 사용)
 drive.psidRevert("PSID_FROM_LABEL");
 ```
+
+**주의: `Revert` vs `RevertSP` 함정** (TCG 의 두 메서드는 이름이
+비슷하지만 ACE 가 다름):
+
+- `AdminSP.Revert()` — UID **0x0202**, **SID 권한** 으로 호출 가능
+  (sedutil `--revertTPer` 와 동일). cats 의 `drive.revert()` 가
+  내부적으로 사용.
+- `AdminSP.RevertSP()` — UID **0x0011**, **PSID 또는 owner** 권한
+  필요. SID 세션에서 호출하면 NotAuthorized.
+- `LockingSP.RevertSP()` — UID 0x0011, **Admin1** 권한. Locking SP 만
+  되돌릴 때 사용 (`composite::revertLockingSP`).
+
+직접 EvalApi 를 쓸 때 잘못 고르면 NotAuthorized — `eval_api.h` 의
+doxygen `@warning` 참조.
 
 ---
 

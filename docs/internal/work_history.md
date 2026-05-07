@@ -1,5 +1,161 @@
 # Work History
 
+## Session 2026-04-28 ~ 2026-05-07 — Wire 비교 기반 8 commit 일괄 정리
+
+### Trigger
+
+사용자가 `log/compare.txt` (cats 55 packet + sedutil --initialSetup 42
+packet) 와 후속 캡처 `log/take_ownership2.log` 를 제공. 두 파일에서
+드러난 cats 결함을 모두 식별·수정·검증 + intent-aware step 도입까지
+일괄 진행한 세션.
+
+### 식별된 결함 패턴 + 처리 결과
+
+| # | 패턴 | 위치 | Commit |
+|---|------|------|--------|
+| 1 | `AdminSP.RevertSP()` (UID 0x0011) 를 SID 권한으로 호출 → NotAuthorized. sedutil 은 `Revert` (0x0202) 사용 | `composite::revertToFactory`, `EvalApi::psidRevert`, `SedDrive::revert/psidRevert` | `2b7d67e` |
+| 2 | `takeOwnership` 멱등성 부재 — 이미 owned 인 드라이브에 재시도 시 무한 NotAuthorized | `composite::takeOwnership` | `5f153a9` |
+| 3 | RevertSP 실패 후 SpBusy 폭주 — 다음 익명 세션이 St=3 으로 차단 | `composite::withSpBusyRetry` 헬퍼 신설 | `5f153a9` |
+| 4 | `revert()` vs `revertSP()` API 함정 — 이름 비슷한데 ACE 다름 | `eval_api.h` doxygen 강화 (UID·권한·@warning·@see) | `5f153a9` |
+| 5 | 일부 펌웨어가 `0xFA` 대신 `SessionManager.CloseSession()` method-form 으로 응답 가능 (spec-legal). cats 는 0xFA token 만 감지 → session leak | `MethodResult::recvMethodUid()` + `Session::sendMethod` server-close 감지 | `83a0abf` |
+| 6 | rosetta_stone / hammurabi_code 가 "sedutil 이 안 쓴다 = spec 이 금지" 식 표현. 신규 엔지니어가 디코더의 합법적 동작 (예: 0x83 short atom 수용) 을 spec rule 로 오독해 제거할 위험 | `docs/rosetta_stone.md` §3·§4a·§4g·§8·§12·§14·§15 + `hammurabi_code.md` LAW 2·LAW 11 — encoder/decoder 비대칭 명시 (Postel's law) | `209f419` |
+| 7 | `examples/05_take_ownership.cpp:133` 이 `composite::revertToFactory` 우회하고 `api.revertSP` 직접 호출. `SedDrive::takeOwnership` 도 composite 우회 → 멱등성 fix 미적용 | example 05 scenario 2 → `api.revert`, `SedDrive::takeOwnership` → `composite::takeOwnership` 라우팅 | `f580e7c` |
+| 8 | **systemic** — `Session::sendMethod` 가 method-level NotAuthorized / SpBusy 등을 Result 로 propagate 안 함. `~20개 simplified overload` 와 모든 example step() 출력이 "wire OK 인데 method FAIL 인 케이스를 OK 로 표시" | `Session::sendMethod` 끝에서 `result.toResult()` 반환. internal helper 의 transportError/protocolError 분리 보정 | `014526c` |
+
+### Intent-aware step (UX 개선)
+
+사용자 피드백: "[Step 6] Verify: SID auth with old MSID fails OK" 같은
+출력에서 "OK = 통과" 인지 "OK = 잘 실패함" 인지 헷갈림. 8번까지의 fix
+가 끝났어도 여전히 "지금 잘 된 건지 모르겠다" 함.
+
+- `examples/example_common.h` 에 `Expect{Success,Failure}` enum +
+  `stepExpect(n, name, expect, r)` 헬퍼 추가. negative test 의 경우
+  실패가 정답일 때 PASS, 거절 사유까지 표시.
+- `examples/05_take_ownership.cpp` 모든 단계에 Intent 주석 + scenario
+  헤더에 의도 요약. scenario 1 step 6 이 negative test 임을 라벨로
+  명시 (`[expect FAIL] PASS`).
+- 23 examples 전수 검토 후 `14_error_handling`, `18_fault_injection`,
+  `20_custom_transport`, `03_sessions` 의 negative test 들 stepExpect
+  로 변환. 나머지 19개는 positive flow 라 기존 step() 유지. (`9bbed95`,
+  `160baaa`)
+
+### 새 설계 계약 (이번 세션에 도입된 것)
+
+1. **Encoder/decoder 비대칭** (Postel's law)
+   - 송신 encoder: sedutil-compat subset (power-of-2 widths,
+     numeric Properties key, 0xFA bare CloseSession, ...)
+   - 수신 decoder: TCG spec 전체 (0x80-0x8F 모든 width, CALL prefix
+     유무 둘 다, SM_CLOSE_SESSION method-form 응답, ...)
+   - 코드는 이미 비대칭이었음. 이번에 문서가 그걸 정확히 반영.
+
+2. **`Session::sendMethod` 가 method-level status 를 Result 로
+   propagate** (`Session::startSession` 과 일관성). RawResult 는
+   wire payload 추가 노출용으로 계속 사용 가능.
+
+3. **`composite::takeOwnership` 멱등성 의미론**:
+   - factory state → 정상 take_own
+   - 같은 비번으로 owned → Success (no-op)
+   - 다른 비번으로 owned → `ErrorCode::AlreadyOwnedDifferentCredential`
+
+4. **SpBusy 자동 복구**: `withSpBusyRetry` 가 `MethodSpBusy` 응답에
+   StackReset + 50ms × 최대 3회 retry. 적용 위치: `takeOwnership`
+   step 2, `revertToFactory` 의 첫 StartSession.
+
+5. **Intent-aware step output**:
+   - `step(n, name, Result)` — positive 단순 케이스
+   - `stepExpect(n, name, Expect::Success/Failure, Result)` — 의도 명시
+   - `step(n, name, bool)` — data 비교 boolean
+
+### 새 ErrorCode
+
+- `ErrorCode::AlreadyOwnedDifferentCredential = 603` —
+  멱등성 retry 시 사용자가 준 비번도 거절될 때.
+
+### 검증
+
+- 빌드 클린, ctest 5/5 PASS (libsed_tests, sed_compare, ioctl_validator,
+  scenario_tests, golden_validator) — 매 commit 후 회귀 확인.
+- 단위테스트 추가: `MethodResult.RecvCloseSessionMethodForm`
+  (`83a0abf`).
+- 단위테스트 보정: `TS_2A_006` mock queue 1개 부족 (이전 lying
+  behavior 로 우연히 통과하던 것) — `assignUserToRange` 의 2회
+  sendMethod 에 맞춰 큐 1개 추가 (`014526c`).
+- **실 디바이스 검증은 미실시** — 다음 세션의 첫 작업.
+
+### 미해결 (백로그)
+
+#### Tier 1 — 곧 해야 할 것
+
+1. **fix 적용 후 새 wire 캡처 1회** — `take_ownership2.log` 같은
+   시나리오로 example 05 다시. `#23` MSID 시도 후 retry packet 에 새
+   비번 hash 가 박히는지, scenario 2 `Revert(0x0202)` 가 St=0 으로
+   통과하는지, intent-aware step 출력이 의도대로 찍히는지 확인.
+2. **Hash compat 정책 결정** — `examples/05` default 를 sedutil-compat
+   (`PBKDF2-HMAC-SHA1` + drive serial) 로 전환할지. 현재는 SHA-256 →
+   cats 와 sedutil 의 SetCPin 페이로드가 byte 다름. `HashPassword::
+   sedutilHash()` 는 이미 구현되어 있음 (`Session 2026-04-27`).
+3. **`tools/pwhash` 골든 벡터** — 같은 (평문, salt) 에서 cats
+   `sedutilHash()` 출력 == sedutil-cli 출력 인지 1회 검증 + fixture
+   commit. `tests/fixtures/golden/` 에.
+
+#### Tier 2 — 미커버 영역
+
+4. **`tools/sed_compare/t1_revert_tper.cpp` stub 채우기** — 현재
+   1.5KB 빈 껍데기. Revert/RevertSP byte 비교 추가.
+5. **`tools/sed_compare`** 에 Activate / MBR / setRange byte 비교 추가.
+6. **TPER_MALFUNCTION (0x0F) 복구 진단** — 누적 0x0C 후 발생.
+   power cycle 안내 메시지. auto-retry 는 부적절.
+7. **`docs/README.md`, `docs/cookbook.md`, `docs/examples.md`** 에
+   이번 세션 변경 (멱등성·SpBusy 복구·Revert vs RevertSP·intent-aware
+   step·SM_CLOSE_SESSION) 반영.
+
+#### Tier 3 — Infrastructure
+
+8. **Mock transport ACE 시뮬레이션** — 단위테스트가 RevertSP 같은 권한
+   버그를 mock 에서 미리 검출. 큰 작업.
+9. **실 디바이스 자동 smoke test** (CI 통합, hardware 부재로 보류).
+10. **examples 22/23** 의 sedutil-compat 흐름이 byte-identical 인지
+    캡처해서 확인 (#3 의 연장).
+
+#### Cosmetic
+
+11. **모든 positive flow `step()` → `stepExpect(Expect::Success)`**
+    일관 변환 (cosmetic, 대량 mechanical 변경).
+
+### 핵심 파일 (resume 시 참조)
+
+| 파일 | 역할 |
+|------|------|
+| `src/eval/eval_composite.cpp:13-49` | `withSpBusyRetry` helper 정의 |
+| `src/eval/eval_composite.cpp:63-127` | `takeOwnership` 멱등성 로직 |
+| `src/eval/eval_composite.cpp:101-145` | `revertToFactory` (SID→Revert 0x0202, PSID fallback) |
+| `src/session/session.cpp:222-247` | server-initiated close 감지 (0xFA + method-form) |
+| `src/session/session.cpp:end of sendMethod` | `result.toResult()` propagate |
+| `include/libsed/method/method_result.h:54-60` | `recvMethodUid()` accessor |
+| `include/libsed/eval/eval_api.h:484-509, 1171-1196` | `revert/revertSP` 강화된 doxygen |
+| `include/libsed/core/error.h:64` | `AlreadyOwnedDifferentCredential` |
+| `examples/example_common.h:35-66` | `stepExpect` + `Expect` |
+| `examples/05_take_ownership.cpp` | intent-aware 첫 적용 사례 |
+| `examples/14_error_handling.cpp` | negative test stepExpect 4곳 |
+| `examples/18_fault_injection.cpp` | fault injection intent 표현 |
+| `docs/rosetta_stone.md` §3, §4a, §4g, §8, §12, §14, §15 | encoder/decoder 비대칭 |
+| `docs/internal/hammurabi_code.md` LAW 2, LAW 11 | 동일 |
+
+### Commit 목록 (시간순)
+
+```
+2b7d67e  Revert: AdminSP.RevertSP → AdminSP.Revert (sedutil-compat)
+5f153a9  Composite: takeOwnership 멱등성 + SpBusy 자동 복구 + revert/revertSP doxygen
+83a0abf  Session: SM_CLOSE_SESSION method-form 응답 감지
+209f419  Docs: encoder/decoder 비대칭 명시 (sedutil-compat vs TCG spec)
+f580e7c  05_take_ownership / SedDrive: 직접-EvalApi 우회 경로 정리
+014526c  Session::sendMethod: method-level status 를 Result 로 propagate
+9bbed95  example 05: 단계별 의도 명시 + intent-aware step reporting
+160baaa  examples: 사용자-facing 출력에서 commit 참조 제거 + 모든 negative test 에 stepExpect
+```
+
+---
+
 ## Session 2026-04-27 (3) — 비밀번호 해시 분기 명문화 (LAW 21 신설)
 
 ### What was done
