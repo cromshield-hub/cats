@@ -1,7 +1,78 @@
 # TC 레시피 모음 (Cookbook)
 
 복사-붙여넣기로 바로 쓸 수 있는 코드 레시피 모음입니다.
-모든 레시���는 `#include <cats.h>`와 `using namespace libsed;`를 가정합니다.
+모든 레시피는 `#include <cats.h>`와 `using namespace libsed;`를 가정합니다.
+
+---
+
+## API 선택 가이드
+
+libsed 는 3 단 추상화를 제공합니다. 대부분의 TC 앱은 **SedDrive 만으로 충분**합니다.
+아래 표를 보고 한 단계씩 내려가세요.
+
+| 목표 | 권장 API | 헤더 |
+|---|---|---|
+| 일반 TC 앱 (대부분의 케이스) | `SedDrive` | `<libsed/facade/sed_drive.h>` |
+| 단계별 결과 로그/검증 자동화 | `EvalComposite` | `<libsed/eval/eval_composite.h>` |
+| 와이어 페이로드 검사 / Fault 주입 | `EvalApi` | `<libsed/eval/eval_api.h>` |
+
+### SedDrive — 기본 선택
+
+- 자동 세션 관리, idempotent 메서드, `SpBusy` 자동 재시도.
+- 충분한 작업: `query` / `takeOwnership` / `activateLocking` /
+  `configureRange` / `setupUser` / `lockRange` / `unlockRange` /
+  `cryptoErase` / `revert` / `setMbrEnable` 등 표준 시나리오.
+- 클래스 레퍼런스: [sed_drive_guide.md](sed_drive_guide.md).
+
+### EvalComposite — 단계 검증이 필요할 때
+
+- `CompositeResult` 로 각 step 의 `Result` + `rawSendPayload` /
+  `rawRecvPayload` 회수.
+- 언제 쓰나: 검증 자동화, 회귀 테스트, "어느 step 에서 막혔는가" 진단.
+- `composite::withSession()` RAII 콜백 패턴은 [레시피 16](#레시피-16-withsession-패턴) 참조.
+
+### EvalApi — 와이어 레벨 제어
+
+- 120+ 개 stateless 메서드. 세션 수동 open/close. 모든 호출에
+  `rawSendPayload` / `rawRecvPayload` 노출.
+- 언제 쓰나: 평가 플랫폼, fault injection (`TestContext`),
+  wire-compat 비교(예: sedutil 와 byte-identical 검증), 비표준 시퀀스.
+- 상세: [eval_platform_guide.md](eval_platform_guide.md).
+
+### 같은 작업, 3 레이어 비교 — 소유권 확보
+
+```cpp
+// (1) SedDrive — 한 줄
+drive.takeOwnership("sid_pw");
+
+// (2) EvalComposite — 단계 로그 포함
+auto cr = composite::takeOwnership(api, transport, comId, "sid_pw");
+for (auto& s : cr.steps)
+    printf("  %s: %s\n", s.name.c_str(), s.result.message().c_str());
+
+// (3) EvalApi — 수동 세션, 단계마다 rawPayload 검사 가능
+Bytes msid;
+Session anon(transport, comId);
+api.startSession(anon, uid::SP_ADMIN, /*write=*/false, ssr);
+api.getCPin(anon, uid::CPIN_MSID, msid);
+api.closeSession(anon);
+
+Session sid(transport, comId);
+api.startSession(sid, uid::SP_ADMIN, /*write=*/true,
+                 uid::AUTH_SID, msid, ssr);
+api.setCPin(sid, uid::CPIN_SID, pwBytes("sid_pw"));
+api.closeSession(sid);
+```
+
+### 내려갈 것인가, 머무를 것인가
+
+- **위에서 아래로만** 이동하세요: SedDrive → Composite → EvalApi.
+  EvalApi 코드를 SedDrive 로 "감싸려" 하지 마세요 — 추상화의 방향은 단방향.
+- **혼용 가능**: `drive.withSession()` 콜백 안에서 `EvalApi` 를 직접 호출하면,
+  SedDrive 의 자동 세션 관리 + EvalApi 의 와이어 제어를 한 번에 얻습니다
+  ([레시피 16](#레시피-16-withsession-패턴)).
+- 부족한 게 무엇인지 먼저 정의하세요: "step 별 로그가 없다" → Composite,
+  "보낸 바이트를 봐야 한다" → EvalApi. 막연히 저수준으로 내려가지 말 것.
 
 ---
 
