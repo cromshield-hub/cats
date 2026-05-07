@@ -45,19 +45,32 @@ static bool setupDrive(EvalApi& api, std::shared_ptr<ITransport> transport,
         [&](Session& s) { return api.activate(s, uid::SP_LOCKING); });
     if (r.failed()) return false;
 
-    // Activate 직후 Admin1 PIN = MSID 가 보통이지만, 이미 ADMIN1_PW 로 설정된
-    // 드라이브에서도 멱등 재실행 가능해야 하므로 MSID → ADMIN1_PW 폴백.
+    // Opal 2.0 spec 5.1.5: Activate 직후 Admin1 PIN = "MSID 또는 vendor-defined".
+    // 실측되는 벤더 변형:
+    //   (a) MSID            — spec 표준
+    //   (b) SID PIN         — Activate 시 SID 값 전파 (Samsung 일부 등)
+    //   (c) ADMIN1_PW (재실행) — 이전 setup 으로 이미 설정됨
+    //   (d) empty           — 일부 구형 펌웨어
+    // 순서대로 시도해 첫 성공한 cred 로 Admin1 PIN = ADMIN1_PW 설정.
     Bytes msid;
     composite::getMsid(api, transport, comId, msid);
 
-    auto admin1Setup = [&](const Bytes& cred) {
-        return composite::withSession(api, transport, comId,
+    auto admin1Setup = [&](const Bytes& cred, const char* label) -> Result {
+        auto rr = composite::withSession(api, transport, comId,
             uid::SP_LOCKING, true, uid::AUTH_ADMIN1, cred,
             [&](Session& s) { return api.setAdmin1Password(s, ADMIN1_PW); });
+        if (rr.ok()) printf("    [setupDrive] Admin1 initial cred = %s\n", label);
+        return rr;
     };
 
-    auto r2 = admin1Setup(msid);
-    if (r2.failed()) r2 = admin1Setup(pwBytes(ADMIN1_PW));
+    auto r2 = admin1Setup(msid, "MSID");
+    if (r2.failed()) r2 = admin1Setup(sidPw, "SID_PW");
+    if (r2.failed()) r2 = admin1Setup(pwBytes(ADMIN1_PW), "ADMIN1_PW");
+    if (r2.failed()) r2 = admin1Setup(Bytes{}, "empty");
+    if (r2.failed()) {
+        printf("    [setupDrive] Admin1 인증 실패 — 4 가지 cred 모두 거부.\n");
+        printf("    드라이브 vendor 가 별도의 Admin1 PIN 정책을 쓰는 것으로 보임.\n");
+    }
     return r2.ok();
 }
 
