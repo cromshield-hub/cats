@@ -245,7 +245,11 @@ Result Session::sendMethod(const Bytes& methodTokens, MethodResult& result) {
         LIBSED_CHECK_FAULT(debug::FaultPoint::AfterRecvMethod, dummy);
     }
 
-    return ErrorCode::Success;
+    // Method-level status 도 Result 에 propagate (Session::startSession 과 일관).
+    // I/O 와 parse 가 성공해도 TPer 가 NotAuthorized / SpBusy 등으로 거부했으면
+    // caller 의 `r.failed()` 체크에 잡혀야 함. RawResult 를 받는 경로는
+    // raw.methodResult 로 동일 정보를 추가 노출.
+    return result.toResult();
 }
 
 Result Session::sendTokenPayload(const Bytes& tokens, Bytes& respTokens) {

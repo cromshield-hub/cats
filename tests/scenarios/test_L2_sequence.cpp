@@ -194,7 +194,8 @@ TEST_SCENARIO(L2, TS_2A_006_UserEnableACE) {
     queueSyncSessionResponse(*mock, COMID, 1, 1);
     queueMethodSuccessResponse(*mock, COMID, 1, 1);  // enableUser
     queueMethodSuccessResponse(*mock, COMID, 1, 1);  // setUserPassword
-    queueMethodSuccessResponse(*mock, COMID, 1, 1);  // assignUserToRange
+    queueMethodSuccessResponse(*mock, COMID, 1, 1);  // assignUserToRange — rdAce Set
+    queueMethodSuccessResponse(*mock, COMID, 1, 1);  // assignUserToRange — wrAce Set
     queueCloseSessionResponse(*mock, COMID);
 
     Session session(mock, COMID);
