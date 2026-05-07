@@ -32,6 +32,34 @@ inline void step(int n, const char* name, bool ok) {
            ok ? "\033[32mOK\033[0m" : "\033[31mFAIL\033[0m");
 }
 
+// ── Intent-aware step reporting ─────────────────────
+//
+// step() 매크로의 한계: 호출자의 "이 동작이 성공해야 PASS인지, 실패해야
+// PASS인지" 의도를 표현 못 함. 일부 검증 단계 (예: take_ownership 후
+// 옛 MSID 가 거부되는지 확인) 는 NotAuthorized 가 떨어져야 PASS.
+//
+// stepExpect() 는 각 단계의 정답 outcome 을 호출 시점에 명시하고,
+// 실제 결과가 그 의도에 부합할 때만 PASS 표시한다.
+
+enum class Expect { Success, Failure };
+
+inline void stepExpect(int n, const char* name, Expect expect, Result r) {
+    bool intentMet = (expect == Expect::Success) ? r.ok() : r.failed();
+    const char* tag = (expect == Expect::Success) ? "expect OK  " : "expect FAIL";
+    printf("  [Step %2d] %-40s [%s] %s\n", n, name, tag,
+           intentMet ? "\033[32mPASS\033[0m" : "\033[31mFAIL\033[0m");
+    if (intentMet && expect == Expect::Failure) {
+        // negative test 가 의도대로 거부됨
+        printf("            -> rejected as intended: %s\n", r.message().c_str());
+    } else if (!intentMet) {
+        if (r.failed()) {
+            printf("            -> got unexpected error: %s\n", r.message().c_str());
+        } else {
+            printf("            -> got unexpected success (expected rejection)\n");
+        }
+    }
+}
+
 // ── Section banners ─────────────────────────────────
 
 inline void banner(const char* title) {
