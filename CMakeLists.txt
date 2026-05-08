@@ -19,6 +19,22 @@ option(LIBSED_BUILD_TOOLS    "Build CLI tools"        ON)
 option(LIBSED_BUILD_SHARED   "Build shared library"   OFF)
 
 # ══════════════════════════════════════════════════════
+#  Privacy: strip absolute source paths from __FILE__
+# ══════════════════════════════════════════════════════
+# 기본 동작은 LIBSED_INFO/DEBUG/... 매크로가 __FILE__ 절대경로를 그대로
+# 임베드해 모든 로그 라인이 빌드 머신 경로(예: /home/user/proj/src/...) 를
+# 노출. 길이도 길고 개인정보(홈/사용자명) 누출 우려 있음.
+#
+# -fmacro-prefix-map (GCC ≥ 8 / Clang ≥ 10) 로 컴파일 시점에 __FILE__ 를
+# project-relative 경로 (예: src/eval/eval_api.cpp) 로 재작성. 코드 변경 0,
+# 모든 LIBSED_LOG 사용처에 자동 적용. 미지원 컴파일러는 silently skip.
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag("-fmacro-prefix-map=${CMAKE_SOURCE_DIR}/=" HAS_MACRO_PREFIX_MAP)
+if(HAS_MACRO_PREFIX_MAP)
+    add_compile_options("-fmacro-prefix-map=${CMAKE_SOURCE_DIR}/=")
+endif()
+
+# ══════════════════════════════════════════════════════
 #  Source files
 # ══════════════════════════════════════════════════════
 set(LIBSED_SOURCES
