@@ -38,6 +38,18 @@ static std::string ADMIN1_PW;
 static bool scenario1_activateEval(std::shared_ptr<ITransport> transport,
                                     uint16_t comId) {
     scenario(1, "Activate Locking SP (EvalApi)");
+    printf("  Intent:   factory-state 드라이브에서 SID 권한으로 Activate(SP_LOCKING)\n");
+    printf("            을 호출해 Locking SP 를 Manufactured-Inactive→Active 로 전환.\n");
+    printf("            Activate 직후 Admin1 PIN 의 vendor 정책을 probe 하여\n");
+    printf("            Admin1 비번을 ADMIN1_PW 로 정착.\n");
+    printf("  Expected: 9 단계 모두 의도대로:\n");
+    printf("            1-2) MSID 읽기 + takeOwnership OK\n");
+    printf("            3-4) SID 세션 + Lifecycle = 0x08 (Manufactured-Inactive)\n");
+    printf("            5)   Activate(SP_LOCKING) OK\n");
+    printf("            6)   Lifecycle = 0x09 (Active) 로 전환됨\n");
+    printf("            7)   Discovery 의 lockingEnabled = true\n");
+    printf("            8)   Admin1 cred probe 로 hit (MSID/SID/empty 중 하나)\n");
+    printf("            9)   Set Admin1 password OK\n\n");
 
     EvalApi api;
 
@@ -75,12 +87,13 @@ static bool scenario1_activateEval(std::shared_ptr<ITransport> transport,
                lifecycle == 8 ? "Manufactured-Inactive" :
                lifecycle == 9 ? "Active" : "Unknown");
 
-        // Step 3: Activate!
-        r = api.activate(session, uid::SP_LOCKING);
-        step(5, "Activate(SP_LOCKING)", r);
-        if (r.failed()) {
-            api.closeSession(session);
-            return false;
+        // Step 3: Activate (only if Manufactured-Inactive — 멱등 보장)
+        if (lifecycle == 8) {
+            r = api.activate(session, uid::SP_LOCKING);
+            step(5, "Activate(SP_LOCKING)", r);
+            if (r.failed()) { api.closeSession(session); return false; }
+        } else {
+            step(5, "Activate (already active — skip 멱등)", true);
         }
 
         // Verify lifecycle changed
@@ -97,25 +110,31 @@ static bool scenario1_activateEval(std::shared_ptr<ITransport> transport,
     step(7, "Discovery after activation", info.lockingEnabled);
     printf("    Locking enabled: %s\n", info.lockingEnabled ? "yes" : "no");
 
-    // Step 5: We can now open a session to Locking SP
-    {
-        Session lockSession(transport, comId);
+    // Step 5: Admin1 PIN 은 spec §5.1.5 상 "MSID 또는 vendor-defined".
+    //         (a) MSID, (b) SID_PW, (c) empty 순서로 probe 해 hit 하는 cred 로
+    //         Admin1 PIN = ADMIN1_PW 설정. 처음 hit 전의 NotAuthorized 는
+    //         정보-수집 목적이며 에러가 아님.
+    Bytes sidPw = pwBytes(SID_PW);
+    auto admin1Probe = [&](const Bytes& cred, const char* label) -> Result {
+        Session s(transport, comId);
         StartSessionResult ssr;
-        Bytes pw = pwBytes(SID_PW);
-        // Admin1 has no password yet after activation, but we can auth
-        // to Locking SP as Admin1 with empty credential
-        auto r = api.startSessionWithAuth(lockSession, uid::SP_LOCKING, true,
-                                           uid::AUTH_ADMIN1, Bytes{}, ssr);
-        step(8, "Session to Locking SP (Admin1, empty pw)", r);
-        if (r.ok()) {
-            // Set Admin1 password for future use
-            r = api.setAdmin1Password(lockSession, ADMIN1_PW);
-            step(9, "Set Admin1 password", r);
-            api.closeSession(lockSession);
+        auto rr = api.startSessionWithAuth(s, uid::SP_LOCKING, true,
+                                            uid::AUTH_ADMIN1, cred, ssr);
+        printf("    Admin1 probe [%-7s] -> %s\n", label,
+               rr.ok() ? "*** HIT ***" : rr.message().c_str());
+        if (rr.ok()) {
+            rr = api.setAdmin1Password(s, ADMIN1_PW);
+            api.closeSession(s);
         }
-    }
+        return rr;
+    };
+    auto r = admin1Probe(msid, "MSID");
+    if (r.failed()) r = admin1Probe(sidPw, "SID_PW");
+    if (r.failed()) r = admin1Probe(Bytes{}, "empty");
+    step(8, "Admin1 cred probe (4 단계 fallback)", r);
+    step(9, "Set Admin1 password", r);
 
-    return true;
+    return r.ok();
 }
 
 // ── Scenario 2: Revert back to factory ──
@@ -123,6 +142,9 @@ static bool scenario1_activateEval(std::shared_ptr<ITransport> transport,
 static bool scenario2_revert(std::shared_ptr<ITransport> transport,
                               uint16_t comId) {
     scenario(2, "Revert to Factory");
+    printf("  Intent:   AdminSP.Revert() 로 Locking SP 활성화/Admin1 비번/User 설정\n");
+    printf("            을 모두 무효화하고 드라이브를 factory state 로 복원.\n");
+    printf("  Expected: 1) RevertToFactory OK, Discovery 의 lockingEnabled=false\n\n");
 
     EvalApi api;
     auto cr = composite::revertToFactory(api, transport, comId, SID_PW);
@@ -141,6 +163,10 @@ static bool scenario2_revert(std::shared_ptr<ITransport> transport,
 
 static bool scenario3_facade(const char* device, cli::CliOptions& opts) {
     scenario(3, "SedDrive::activateLocking()");
+    printf("  Intent:   scenario 1 의 take_own + activate 흐름을 SedDrive facade 한\n");
+    printf("            줄로 축약. 내부적으로 lifecycle 체크 + 자동 cleanup 수행.\n");
+    printf("  Expected: 3 단계 모두 OK:\n");
+    printf("            1) takeOwnership / 2) activateLocking / 3) revert\n\n");
 
     SedDrive drive(device);
     if (opts.dump) drive.enableDump(std::cerr, opts.dumpLevel);

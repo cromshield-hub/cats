@@ -40,8 +40,15 @@ static bool scenario1_evalOwnership(std::shared_ptr<ITransport> transport,
                                      uint16_t comId,
                                      const PropertiesResult& props) {
     scenario(1, "Take Ownership Step-by-Step (EvalApi)");
-    printf("  Intent: factory-state 드라이브에서 SID 비번을 MSID -> TEST_SID_PW 로\n");
-    printf("          교체하고, 새 비번 동작 + 옛 MSID 무효화를 모두 검증.\n\n");
+    printf("  Intent:   factory-state 드라이브에서 SID 비번을 MSID -> TEST_SID_PW 로\n");
+    printf("            교체하고, 새 비번 동작 + 옛 MSID 무효화를 모두 검증.\n");
+    printf("  Expected: 6 단계 모두 의도대로:\n");
+    printf("            1) 익명 세션 OK\n");
+    printf("            2) MSID 읽기 OK\n");
+    printf("            3) SID-auth (cred=MSID) OK (factory state) / 이미 owned 면 skip\n");
+    printf("            4) Set C_PIN_SID (= hash(TEST_SID_PW)) OK\n");
+    printf("            5) 새 비번으로 SID-auth OK\n");
+    printf("            6) 옛 MSID 거부 (NEGATIVE TEST — NotAuthorized 가 정답)\n\n");
 
     EvalApi api;
 
@@ -131,9 +138,13 @@ static bool scenario2_revert(std::shared_ptr<ITransport> transport,
                               uint16_t comId,
                               const PropertiesResult& props) {
     scenario(2, "Revert to Factory State");
-    printf("  Intent: scenario 1 에서 박은 새 SID 비번을 사용해 AdminSP.Revert()\n");
-    printf("          호출. 드라이브를 factory state 로 되돌리고 MSID 가 다시\n");
-    printf("          credential 로 작동하는지 검증.\n\n");
+    printf("  Intent:   scenario 1 에서 박은 새 SID 비번을 사용해 AdminSP.Revert()\n");
+    printf("            호출. 드라이브를 factory state 로 되돌리고 MSID 가 다시\n");
+    printf("            credential 로 작동하는지 검증.\n");
+    printf("  Expected: 3 단계 모두 의도대로:\n");
+    printf("            1) SID-auth (cred=TEST_SID_PW) OK\n");
+    printf("            2) AdminSP.Revert() (UID=0x0202, SID 권한) OK\n");
+    printf("            3) Revert 후 MSID 가 다시 SID credential 로 작동 OK\n\n");
 
     EvalApi api;
 
@@ -203,9 +214,12 @@ static bool scenario2_revert(std::shared_ptr<ITransport> transport,
 
 static bool scenario3_facade(const char* device, cli::CliOptions& opts) {
     scenario(3, "SedDrive One-Liner Ownership");
-    printf("  Intent: scenario 1 의 step-by-step 흐름을 SedDrive facade 한 줄로\n");
-    printf("          축약. 이미 owned 인 드라이브는 멱등 no-op 으로 처리되며\n");
-    printf("          SpBusy 응답 시 자동 복구.\n\n");
+    printf("  Intent:   scenario 1 의 step-by-step 흐름을 SedDrive facade 한 줄로\n");
+    printf("            축약. 이미 owned 인 드라이브는 멱등 no-op 으로 처리되며\n");
+    printf("            SpBusy 응답 시 자동 복구.\n");
+    printf("  Expected: 2 단계 모두 OK:\n");
+    printf("            1) takeOwnership(TEST_SID_PW) — factory→owned 또는 멱등\n");
+    printf("            2) revert(TEST_SID_PW) — factory 로 복원\n\n");
 
     SedDrive drive(device);
     if (opts.dump) drive.enableDump(std::cerr, opts.dumpLevel);
