@@ -37,19 +37,20 @@ static std::string ADMIN1_PW;
 
 static bool scenario1_activateEval(std::shared_ptr<ITransport> transport,
                                     uint16_t comId) {
-    scenario(1, "Activate Locking SP (EvalApi)");
-    printf("  Intent:   factory-state 드라이브에서 SID 권한으로 Activate(SP_LOCKING)\n");
-    printf("            을 호출해 Locking SP 를 Manufactured-Inactive→Active 로 전환.\n");
-    printf("            Activate 직후 Admin1 PIN 의 vendor 정책을 probe 하여\n");
-    printf("            Admin1 비번을 ADMIN1_PW 로 정착.\n");
-    printf("  Expected: 9 단계 모두 의도대로:\n");
-    printf("            1-2) MSID 읽기 + takeOwnership OK\n");
-    printf("            3-4) SID 세션 + Lifecycle = 0x08 (Manufactured-Inactive)\n");
-    printf("            5)   Activate(SP_LOCKING) OK\n");
-    printf("            6)   Lifecycle = 0x09 (Active) 로 전환됨\n");
-    printf("            7)   Discovery 의 lockingEnabled = true\n");
-    printf("            8)   Admin1 cred probe 로 hit (MSID/SID/empty 중 하나)\n");
-    printf("            9)   Set Admin1 password OK\n\n");
+    scenarioIntent(1, "Activate Locking SP (EvalApi)",
+        { "factory-state 드라이브에서 SID 권한으로 Activate(SP_LOCKING)",
+          "을 호출해 Locking SP 를 Manufactured-Inactive→Active 로 전환.",
+          "Activate 직후 Admin1 PIN 의 vendor 정책을 probe 하여",
+          "Admin1 비번을 ADMIN1_PW 로 정착." },
+        { "Read MSID OK",
+          "Take ownership OK",
+          "SID 세션 OK",
+          "Lifecycle 읽기 OK (0x08 Manufactured-Inactive 또는 이미 활성)",
+          "Activate(SP_LOCKING) OK (또는 이미 활성이면 skip 멱등)",
+          "Lifecycle = 0x09 (Active) 로 전환됨",
+          "Discovery 의 lockingEnabled = true",
+          "Admin1 cred probe 로 hit (MSID/SID_PW/empty 중 하나)",
+          "Set Admin1 password OK" });
 
     EvalApi api;
 
@@ -141,10 +142,10 @@ static bool scenario1_activateEval(std::shared_ptr<ITransport> transport,
 
 static bool scenario2_revert(std::shared_ptr<ITransport> transport,
                               uint16_t comId) {
-    scenario(2, "Revert to Factory");
-    printf("  Intent:   AdminSP.Revert() 로 Locking SP 활성화/Admin1 비번/User 설정\n");
-    printf("            을 모두 무효화하고 드라이브를 factory state 로 복원.\n");
-    printf("  Expected: 1) RevertToFactory OK, Discovery 의 lockingEnabled=false\n\n");
+    scenarioIntent(2, "Revert to Factory",
+        { "AdminSP.Revert() 로 Locking SP 활성화/Admin1 비번/User 설정",
+          "을 모두 무효화하고 드라이브를 factory state 로 복원." },
+        { "RevertToFactory OK, 후속 Discovery 의 lockingEnabled = false" });
 
     EvalApi api;
     auto cr = composite::revertToFactory(api, transport, comId, SID_PW);
@@ -162,11 +163,12 @@ static bool scenario2_revert(std::shared_ptr<ITransport> transport,
 // ── Scenario 3: SedDrive one-liner ──
 
 static bool scenario3_facade(const char* device, cli::CliOptions& opts) {
-    scenario(3, "SedDrive::activateLocking()");
-    printf("  Intent:   scenario 1 의 take_own + activate 흐름을 SedDrive facade 한\n");
-    printf("            줄로 축약. 내부적으로 lifecycle 체크 + 자동 cleanup 수행.\n");
-    printf("  Expected: 3 단계 모두 OK:\n");
-    printf("            1) takeOwnership / 2) activateLocking / 3) revert\n\n");
+    scenarioIntent(3, "SedDrive::activateLocking()",
+        { "scenario 1 의 take_own + activate 흐름을 SedDrive facade 한",
+          "줄로 축약. 내부적으로 lifecycle 체크 + 자동 cleanup 수행." },
+        { "takeOwnership OK",
+          "activateLocking OK",
+          "revert OK" });
 
     SedDrive drive(device);
     if (opts.dump) drive.enableDump(std::cerr, opts.dumpLevel);

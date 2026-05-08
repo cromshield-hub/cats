@@ -89,15 +89,14 @@ static bool setupDrive(EvalApi& api, std::shared_ptr<ITransport> transport,
 
 static bool scenario1_genKey(std::shared_ptr<ITransport> transport,
                               uint16_t comId) {
-    scenario(1, "Crypto Erase via GenKey");
-    printf("  Intent:   Range 1 의 K_AES 키를 GenKey 로 회전. UID 는 동일하지만\n");
-    printf("            내부 키 material 이 새로 생성되어 기존 데이터 복호 불가.\n");
-    printf("            (밀리초 단위 instant data destruction)\n");
-    printf("  Expected: 4 단계 모두 OK:\n");
-    printf("            1) getActiveKey(Range 1) — 회전 전 UID 확인\n");
-    printf("            2) cryptoErase(Range 1) — GenKey 호출\n");
-    printf("            3) getActiveKey(Range 1) — 같은 UID (객체 동일, 키만 갱신)\n");
-    printf("            4) getRangeInfo — Range 구성(start/len/RLE/WLE) 보존됨\n\n");
+    scenarioIntent(1, "Crypto Erase via GenKey",
+        { "Range 1 의 K_AES 키를 GenKey 로 회전. UID 는 동일하지만",
+          "내부 키 material 이 새로 생성되어 기존 데이터 복호 불가.",
+          "(밀리초 단위 instant data destruction)" },
+        { "getActiveKey(Range 1) — 회전 전 UID 확인",
+          "cryptoErase(Range 1) — GenKey 호출 OK",
+          "getActiveKey(Range 1) — 같은 UID (객체 동일, 키만 갱신)",
+          "getRangeInfo — Range 구성(start/len/RLE/WLE) 보존됨" });
 
     EvalApi api;
     Bytes admin1Pw = pwBytes(ADMIN1_PW);
@@ -154,10 +153,12 @@ static bool scenario1_genKey(std::shared_ptr<ITransport> transport,
 
 static bool scenario2_multipleErases(std::shared_ptr<ITransport> transport,
                                       uint16_t comId) {
-    scenario(2, "Multiple Crypto Erases");
-    printf("  Intent:   GenKey 가 멱등 호출 가능한지 확인. 연속 3 회 호출 시\n");
-    printf("            매번 새 키가 생성되며 누적 에러 없이 처리되어야 함.\n");
-    printf("  Expected: 3 회 모두 OK — 각 호출이 완전히 독립적인 새 키 생성.\n\n");
+    scenarioIntent(2, "Multiple Crypto Erases",
+        { "GenKey 가 멱등 호출 가능한지 확인. 연속 3 회 호출 시",
+          "매번 새 키가 생성되며 누적 에러 없이 처리되어야 함." },
+        { "Crypto erase #1 OK",
+          "Crypto erase #2 OK",
+          "Crypto erase #3 OK — 누적 3 회 키 회전 완료" });
 
     EvalApi api;
     Bytes admin1Pw = pwBytes(ADMIN1_PW);
@@ -182,10 +183,10 @@ static bool scenario2_multipleErases(std::shared_ptr<ITransport> transport,
 // ── Scenario 3: SedDrive one-liner ──
 
 static bool scenario3_facade(const char* device, cli::CliOptions& opts) {
-    scenario(3, "SedDrive::cryptoErase()");
-    printf("  Intent:   scenario 1 의 Admin1 세션 + GenKey 흐름을 facade 한 줄로.\n");
-    printf("            세션 관리/cred 처리 자동화.\n");
-    printf("  Expected: 1) cryptoErase(range=1, ADMIN1_PW) OK\n\n");
+    scenarioIntent(3, "SedDrive::cryptoErase()",
+        { "scenario 1 의 Admin1 세션 + GenKey 흐름을 facade 한 줄로.",
+          "세션 관리/cred 처리 자동화." },
+        { "cryptoErase(range=1, ADMIN1_PW) OK" });
 
     SedDrive drive(device);
     if (opts.dump) drive.enableDump(std::cerr, opts.dumpLevel);

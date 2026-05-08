@@ -74,15 +74,14 @@ static bool setupDrive(EvalApi& api, std::shared_ptr<ITransport> transport,
 
 static bool scenario1_revertSP(std::shared_ptr<ITransport> transport,
                                 uint16_t comId) {
-    scenario(1, "RevertSP with SID Authentication");
-    printf("  Intent:   알려진 SID 비번으로 AdminSP.Revert() 호출. AdminSP + Locking\n");
-    printf("            SP 모두 factory state 로 복원되며 모든 K_AES 키가 회전됨.\n");
-    printf("  Expected: 5 단계 모두 의도대로:\n");
-    printf("            1) 드라이브 setup (이미 owned 면 skip 정보)\n");
-    printf("            2) revert 전 lockingEnabled = true\n");
-    printf("            3) RevertToFactory(SID) OK — 세션은 TPer 가 자동 종료\n");
-    printf("            4) revert 후 lockingEnabled = false (Manufactured-Inactive)\n");
-    printf("            5) MSID 가 다시 SID credential 로 작동 OK\n\n");
+    scenarioIntent(1, "RevertSP with SID Authentication",
+        { "알려진 SID 비번으로 AdminSP.Revert() 호출. AdminSP + Locking",
+          "SP 모두 factory state 로 복원되며 모든 K_AES 키가 회전됨." },
+        { "드라이브 setup (이미 owned 면 skip 정보)",
+          "revert 전 lockingEnabled = true",
+          "RevertToFactory(SID) OK — 세션은 TPer 가 자동 종료",
+          "revert 후 lockingEnabled = false (Manufactured-Inactive)",
+          "MSID 가 다시 SID credential 로 작동 OK" });
 
     EvalApi api;
 
@@ -135,13 +134,13 @@ static bool scenario1_revertSP(std::shared_ptr<ITransport> transport,
 
 static bool scenario2_psidRevert(std::shared_ptr<ITransport> transport,
                                   uint16_t comId, const std::string& psid) {
-    scenario(2, "PSID Revert (Emergency Recovery)");
-    printf("  Intent:   SID 비번을 모르는 상태에서도 드라이브 라벨의 PSID 로 강제\n");
-    printf("            factory reset. password lockout 시 비상 복구 경로.\n");
-    printf("  Expected: --psid 미제공이면 정보성 skip. 제공 시 3 단계 모두 OK:\n");
-    printf("            1) 드라이브 setup\n");
-    printf("            2) PSID Revert (cred=PSID, AUTH_PSID) OK\n");
-    printf("            3) 후속 Discovery 의 lockingEnabled = false\n\n");
+    scenarioIntent(2, "PSID Revert (Emergency Recovery)",
+        { "SID 비번을 모르는 상태에서도 드라이브 라벨의 PSID 로 강제",
+          "factory reset. password lockout 시 비상 복구 경로.",
+          "--psid 미제공이면 정보성 skip." },
+        { "드라이브 setup OK",
+          "PSID Revert (cred=PSID, AUTH_PSID) OK",
+          "후속 Discovery 의 lockingEnabled = false" });
 
     if (psid.empty()) {
         printf("    PSID not provided (use --psid <value>). Skipping.\n");
@@ -180,11 +179,12 @@ static bool scenario2_psidRevert(std::shared_ptr<ITransport> transport,
 // ── Scenario 3: SedDrive one-liners ──
 
 static bool scenario3_facade(const char* device, cli::CliOptions& opts) {
-    scenario(3, "SedDrive::revert() and psidRevert()");
-    printf("  Intent:   take_own → activate → revert 흐름을 facade 한 줄씩.\n");
-    printf("            모든 세션/cred 처리 자동.\n");
-    printf("  Expected: 3 단계 모두 OK:\n");
-    printf("            1) takeOwnership / 2) activateLocking / 3) revert(SID)\n\n");
+    scenarioIntent(3, "SedDrive::revert() and psidRevert()",
+        { "take_own → activate → revert 흐름을 facade 한 줄씩.",
+          "모든 세션/cred 처리 자동." },
+        { "takeOwnership OK",
+          "activateLocking OK",
+          "revert(SID) OK" });
 
     SedDrive drive(device);
     if (opts.dump) drive.enableDump(std::cerr, opts.dumpLevel);

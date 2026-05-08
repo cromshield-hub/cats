@@ -45,13 +45,12 @@ using namespace libsed::debug;
 
 static bool scenario1_transportFailure(std::shared_ptr<ITransport> transport,
                                         uint16_t comId) {
-    scenario(1, "Simulate Transport Send Failure");
-    printf("  Intent:   FaultBuilder 로 BeforeIfSend 시점에 TransportSendFailed 를\n");
-    printf("            한 번만(.once()) 박아둔 뒤 첫 호출이 실패하고 두 번째는 정상\n");
-    printf("            작동하는지 검증. fault 의 격리 (one-shot) 가 핵심.\n");
-    printf("  Expected: 2 단계:\n");
-    printf("            1) Properties 첫 호출 → FAIL (의도된 fault — 정답)\n");
-    printf("            2) disarmAll 후 재호출 → OK (정상 복원)\n\n");
+    scenarioIntent(1, "Simulate Transport Send Failure",
+        { "FaultBuilder 로 BeforeIfSend 시점에 TransportSendFailed 를",
+          "한 번만(.once()) 박아둔 뒤 첫 호출이 실패하고 두 번째는 정상",
+          "작동하는지 검증. fault 의 격리 (one-shot) 가 핵심." },
+        { "Properties 첫 호출 → FAIL (의도된 fault — 정답)",
+          "disarmAll 후 재호출 → OK (정상 복원)" });
 
     EvalApi api;
 
@@ -84,11 +83,10 @@ static bool scenario1_transportFailure(std::shared_ptr<ITransport> transport,
 
 static bool scenario2_corruptPayload(std::shared_ptr<ITransport> transport,
                                       uint16_t comId) {
-    scenario(2, "Corrupt Outgoing Payload");
-    printf("  Intent:   .corrupt(offset=30, mask=0xFF) 로 송출 직전에 byte 31 을\n");
-    printf("            XOR 변조. TPer 가 malformed packet 으로 거부하는지 확인.\n");
-    printf("  Expected: 1 단계:\n");
-    printf("            1) Properties (변조된 payload) → FAIL (TPer 거부 — 정답)\n\n");
+    scenarioIntent(2, "Corrupt Outgoing Payload",
+        { ".corrupt(offset=30, mask=0xFF) 로 송출 직전에 byte 31 을",
+          "XOR 변조. TPer 가 malformed packet 으로 거부하는지 확인." },
+        { "Properties (변조된 payload) → FAIL (TPer 거부 — 정답)" });
 
     EvalApi api;
 
@@ -116,13 +114,12 @@ static bool scenario2_corruptPayload(std::shared_ptr<ITransport> transport,
 
 static bool scenario3_multiFire(std::shared_ptr<ITransport> transport,
                                  uint16_t comId) {
-    scenario(3, "Multi-Fire Fault (fail N times)");
-    printf("  Intent:   .times(2) 로 처음 2 회만 실패, 3 회째는 자동 통과.\n");
-    printf("            retry 로직의 fault 회복성 테스트 (2회 실패 후 성공 시나리오).\n");
-    printf("  Expected: 3 단계:\n");
-    printf("            1) Properties #1 → FAIL (fault rule fire 1/2 — 정답)\n");
-    printf("            2) Properties #2 → FAIL (fault rule fire 2/2 — 정답)\n");
-    printf("            3) Properties #3 → OK   (rule 소진 후 정상 — 정답)\n\n");
+    scenarioIntent(3, "Multi-Fire Fault (fail N times)",
+        { ".times(2) 로 처음 2 회만 실패, 3 회째는 자동 통과.",
+          "retry 로직의 fault 회복성 테스트 (2회 실패 후 성공 시나리오)." },
+        { "Properties #1 → FAIL (fault rule fire 1/2 — 정답)",
+          "Properties #2 → FAIL (fault rule fire 2/2 — 정답)",
+          "Properties #3 → OK   (rule 소진 후 정상 — 정답)" });
 
     EvalApi api;
 
@@ -155,13 +152,12 @@ static bool scenario3_multiFire(std::shared_ptr<ITransport> transport,
 
 static bool scenario4_callback(std::shared_ptr<ITransport> transport,
                                 uint16_t comId) {
-    scenario(4, "Custom Fault Callback");
-    printf("  Intent:   .callback() 으로 송출 직전 payload 를 가로채 로그만 남기고\n");
-    printf("            그대로 통과(Success 반환). 비파괴 모니터링/추적 패턴.\n");
-    printf("            .times(3) 으로 첫 3 번의 send 만 콜백 발화.\n");
-    printf("  Expected: 1 단계 + 콜백 카운트:\n");
-    printf("            1) callCount > 0 (Properties + StartSession + CloseSession 의\n");
-    printf("               각 send 마다 콜백 발화)\n\n");
+    scenarioIntent(4, "Custom Fault Callback",
+        { ".callback() 으로 송출 직전 payload 를 가로채 로그만 남기고",
+          "그대로 통과(Success 반환). 비파괴 모니터링/추적 패턴.",
+          ".times(3) 으로 첫 3 번의 send 만 콜백 발화." },
+        { "callCount > 0 (Properties + StartSession + CloseSession 의 각 "
+          "send 마다 콜백 발화)" });
 
     EvalApi api;
     int callCount = 0;

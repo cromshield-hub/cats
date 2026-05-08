@@ -89,15 +89,14 @@ static bool setupDrive(EvalApi& api, std::shared_ptr<ITransport> transport,
 
 static bool scenario1_setupUser(std::shared_ptr<ITransport> transport,
                                  uint16_t comId) {
-    scenario(1, "Setup User1 — Enable, Password, ACE");
-    printf("  Intent:   Admin1 권한으로 LockingSP 에 들어가 User1 을 활성화하고\n");
-    printf("            비번을 설정한 뒤 Range 1 의 lock/unlock ACE 에 등록.\n");
-    printf("  Expected: 5 단계 모두 OK:\n");
-    printf("            1) Range 1 구성 (start=0, length=1024, both lock 활성)\n");
-    printf("            2) enableUser(User1) — Authority.Enabled=true\n");
-    printf("            3) isUserEnabled(User1) → true 검증\n");
-    printf("            4) setUserPassword(User1, USER1_PW)\n");
-    printf("            5) ACE_Locking_Range1_Set_Rd/WrLocked 에 User1 추가\n\n");
+    scenarioIntent(1, "Setup User1 — Enable, Password, ACE",
+        { "Admin1 권한으로 LockingSP 에 들어가 User1 을 활성화하고",
+          "비번을 설정한 뒤 Range 1 의 lock/unlock ACE 에 등록." },
+        { "Range 1 구성 (start=0, length=1024, both lock 활성) OK",
+          "enableUser(User1) — Authority.Enabled = true OK",
+          "isUserEnabled(User1) → true 검증 OK",
+          "setUserPassword(User1, USER1_PW) OK",
+          "ACE_Locking_Range1_Set_Rd/WrLocked 에 User1 추가 OK" });
 
     EvalApi api;
     Bytes admin1Pw = pwBytes(ADMIN1_PW);
@@ -146,14 +145,13 @@ static bool scenario1_setupUser(std::shared_ptr<ITransport> transport,
 
 static bool scenario2_userLockUnlock(std::shared_ptr<ITransport> transport,
                                       uint16_t comId) {
-    scenario(2, "User1 Lock/Unlock Range 1");
-    printf("  Intent:   scenario 1 에서 등록한 User1 의 권한이 실제로 작동하는지\n");
-    printf("            User1 비번으로 직접 인증 후 lock→verify→unlock→verify.\n");
-    printf("  Expected: 4 단계 모두 OK:\n");
-    printf("            1) User1: Range 1 lock (Rd/WrLocked = true)\n");
-    printf("            2) getRangeInfo → ReadLocked=yes, WriteLocked=yes\n");
-    printf("            3) User1: Range 1 unlock (Rd/WrLocked = false)\n");
-    printf("            4) getRangeInfo → ReadLocked=no, WriteLocked=no\n\n");
+    scenarioIntent(2, "User1 Lock/Unlock Range 1",
+        { "scenario 1 에서 등록한 User1 의 권한이 실제로 작동하는지",
+          "User1 비번으로 직접 인증 후 lock→verify→unlock→verify." },
+        { "User1: Range 1 lock (Rd/WrLocked = true) OK",
+          "getRangeInfo → ReadLocked=yes, WriteLocked=yes",
+          "User1: Range 1 unlock (Rd/WrLocked = false) OK",
+          "getRangeInfo → ReadLocked=no, WriteLocked=no" });
 
     EvalApi api;
     Bytes user1Pw = pwBytes(USER1_PW);
@@ -195,13 +193,12 @@ static bool scenario2_userLockUnlock(std::shared_ptr<ITransport> transport,
 
 static bool scenario3_facade(const char* device, uint16_t comId,
                               cli::CliOptions& opts) {
-    scenario(3, "SedDrive::setupUser() + lockRange/unlockRange");
-    printf("  Intent:   scenario 1 + 2 의 흐름을 SedDrive facade 한 줄씩 축약.\n");
-    printf("            setupUser 는 enable + password + ACE 를 한 호출로 묶음.\n");
-    printf("  Expected: 3 단계 모두 OK:\n");
-    printf("            1) setupUser(1, USER1_PW, range=1, ADMIN1_PW)\n");
-    printf("            2) lockRange(1, USER1_PW, 1)\n");
-    printf("            3) unlockRange(1, USER1_PW, 1)\n\n");
+    scenarioIntent(3, "SedDrive::setupUser() + lockRange/unlockRange",
+        { "scenario 1 + 2 의 흐름을 SedDrive facade 한 줄씩 축약.",
+          "setupUser 는 enable + password + ACE 를 한 호출로 묶음." },
+        { "setupUser(1, USER1_PW, range=1, ADMIN1_PW) OK",
+          "lockRange(1, USER1_PW, 1) OK",
+          "unlockRange(1, USER1_PW, 1) OK" });
 
     SedDrive drive(device);
     if (opts.dump) drive.enableDump(std::cerr, opts.dumpLevel);

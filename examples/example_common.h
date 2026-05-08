@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 #include <chrono>
+#include <initializer_list>
 
 using namespace libsed;
 using namespace libsed::eval;
@@ -70,6 +71,40 @@ inline void banner(const char* title) {
 
 inline void scenario(int n, const char* title) {
     printf("\n── Scenario %d: %s ──\n\n", n, title);
+}
+
+/// scenario() + Intent + numbered Expected outcomes.
+///
+/// `intent`   — 1줄 이상의 의도 설명. 첫 줄은 "Intent:" 라벨 옆,
+///              이후 줄은 col 12 로 들여쓰기.
+/// `expected` — 정상 흐름 시 단계별 결과. 각 항목 자동 번호(1) 2) ...).
+///              negative test 인 항목은 항목 끝에 "(NEGATIVE — ... 가 정답)"
+///              같은 인라인 주석으로 명시.
+///
+/// Example:
+///   scenarioIntent(1, "Take Ownership",
+///       { "factory-state 에서 SID 비번을 MSID -> NEW 로 교체하고",
+///         "옛 MSID 가 거부되는지도 함께 검증." },
+///       { "익명 세션 OK",
+///         "MSID 읽기 OK",
+///         "옛 MSID 거부 (NEGATIVE — NotAuthorized 가 정답)" });
+inline void scenarioIntent(int n, const char* title,
+                            std::initializer_list<const char*> intent,
+                            std::initializer_list<const char*> expected) {
+    scenario(n, title);
+    bool first = true;
+    for (const char* line : intent) {
+        printf("  %s%s\n", first ? "Intent:   " : "          ", line);
+        first = false;
+    }
+    first = true;
+    int i = 1;
+    for (const char* line : expected) {
+        printf("  %s%d) %s\n", first ? "Expected: " : "          ", i, line);
+        first = false;
+        i++;
+    }
+    printf("\n");
 }
 
 // ── Hex dump ────────────────────────────────────────
