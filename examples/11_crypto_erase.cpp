@@ -33,23 +33,54 @@ static std::string ADMIN1_PW;
 
 static bool setupDrive(EvalApi& api, std::shared_ptr<ITransport> transport,
                        uint16_t comId) {
+    printf("\n── Setup ───────────────────────────────────────────\n");
+    printf("목적:  takeOwnership + Activate(SP_LOCKING) + Admin1 PIN 설정 +\n");
+    printf("       Range 1 구성 (start=0, len=1024, lock 활성)\n");
+    printf("기대:  scenario 들이 Admin1 권한으로 Range 1 의 K_AES 키를 회전 가능.\n\n");
+
+    printf("[1/3] takeOwnership(SID_PW) — 멱등\n");
     auto cr = composite::takeOwnership(api, transport, comId, SID_PW);
+    printf("      → %s\n", cr.ok() ? "OK" : cr.overall.message().c_str());
     if (cr.failed()) return false;
 
+    printf("[2/3] Activate(SP_LOCKING) — Lifecycle 체크 후 멱등 실행\n");
     Bytes sidPw = pwBytes(SID_PW);
+    uint8_t lifecycle = 0;
+    RawResult lcRaw;
     auto r = composite::withSession(api, transport, comId,
         uid::SP_ADMIN, true, uid::AUTH_SID, sidPw,
-        [&](Session& s) { return api.activate(s, uid::SP_LOCKING); });
+        [&](Session& s) -> Result {
+            auto rr = api.getSpLifecycle(s, uid::SP_LOCKING, lifecycle, lcRaw);
+            if (rr.failed()) return rr;
+            if (lifecycle == 0x08) return api.activate(s, uid::SP_LOCKING);
+            return ErrorCode::Success;
+        });
+    printf("      Lifecycle=0x%02X → %s\n", lifecycle,
+           r.ok() ? "OK" : r.message().c_str());
     if (r.failed()) return false;
 
-    return composite::withSession(api, transport, comId,
-        uid::SP_LOCKING, true, uid::AUTH_ADMIN1, Bytes{},
-        [&](Session& s) -> Result {
-            auto r2 = api.setAdmin1Password(s, ADMIN1_PW);
-            if (r2.failed()) return r2;
-            // Configure Range 1 with locking enabled
-            return api.setRange(s, 1, 0, 1024, true, true);
-        }).ok();
+    printf("[3/3] Admin1 PIN = ADMIN1_PW + Range 1 구성 (4-단계 cred probe)\n");
+    Bytes msid;
+    composite::getMsid(api, transport, comId, msid);
+    auto admin1Setup = [&](const Bytes& cred, const char* label) -> Result {
+        printf("      Probe [%-9s] ... ", label); fflush(stdout);
+        auto rr = composite::withSession(api, transport, comId,
+            uid::SP_LOCKING, true, uid::AUTH_ADMIN1, cred,
+            [&](Session& s) -> Result {
+                auto r2 = api.setAdmin1Password(s, ADMIN1_PW);
+                if (r2.failed()) return r2;
+                return api.setRange(s, 1, 0, 1024, true, true);
+            });
+        printf("%s\n", rr.ok() ? "*** HIT ***" : rr.message().c_str());
+        return rr;
+    };
+    auto r2 = admin1Setup(msid, "MSID");
+    if (r2.failed()) r2 = admin1Setup(sidPw, "SID_PW");
+    if (r2.failed()) r2 = admin1Setup(pwBytes(ADMIN1_PW), "ADMIN1_PW");
+    if (r2.failed()) r2 = admin1Setup(Bytes{}, "empty");
+    printf("      결과: %s\n", r2.ok() ? "OK" : "ALL FAILED");
+    printf("─────────────────────────────────────────────────────\n\n");
+    return r2.ok();
 }
 
 // ── Scenario 1: Crypto Erase via GenKey ──
@@ -59,6 +90,14 @@ static bool setupDrive(EvalApi& api, std::shared_ptr<ITransport> transport,
 static bool scenario1_genKey(std::shared_ptr<ITransport> transport,
                               uint16_t comId) {
     scenario(1, "Crypto Erase via GenKey");
+    printf("  Intent:   Range 1 의 K_AES 키를 GenKey 로 회전. UID 는 동일하지만\n");
+    printf("            내부 키 material 이 새로 생성되어 기존 데이터 복호 불가.\n");
+    printf("            (밀리초 단위 instant data destruction)\n");
+    printf("  Expected: 4 단계 모두 OK:\n");
+    printf("            1) getActiveKey(Range 1) — 회전 전 UID 확인\n");
+    printf("            2) cryptoErase(Range 1) — GenKey 호출\n");
+    printf("            3) getActiveKey(Range 1) — 같은 UID (객체 동일, 키만 갱신)\n");
+    printf("            4) getRangeInfo — Range 구성(start/len/RLE/WLE) 보존됨\n\n");
 
     EvalApi api;
     Bytes admin1Pw = pwBytes(ADMIN1_PW);
@@ -116,6 +155,9 @@ static bool scenario1_genKey(std::shared_ptr<ITransport> transport,
 static bool scenario2_multipleErases(std::shared_ptr<ITransport> transport,
                                       uint16_t comId) {
     scenario(2, "Multiple Crypto Erases");
+    printf("  Intent:   GenKey 가 멱등 호출 가능한지 확인. 연속 3 회 호출 시\n");
+    printf("            매번 새 키가 생성되며 누적 에러 없이 처리되어야 함.\n");
+    printf("  Expected: 3 회 모두 OK — 각 호출이 완전히 독립적인 새 키 생성.\n\n");
 
     EvalApi api;
     Bytes admin1Pw = pwBytes(ADMIN1_PW);
@@ -141,6 +183,9 @@ static bool scenario2_multipleErases(std::shared_ptr<ITransport> transport,
 
 static bool scenario3_facade(const char* device, cli::CliOptions& opts) {
     scenario(3, "SedDrive::cryptoErase()");
+    printf("  Intent:   scenario 1 의 Admin1 세션 + GenKey 흐름을 facade 한 줄로.\n");
+    printf("            세션 관리/cred 처리 자동화.\n");
+    printf("  Expected: 1) cryptoErase(range=1, ADMIN1_PW) OK\n\n");
 
     SedDrive drive(device);
     if (opts.dump) drive.enableDump(std::cerr, opts.dumpLevel);
