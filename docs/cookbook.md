@@ -1,5 +1,9 @@
 # TC 레시피 모음 (Cookbook)
 
+> **Audience:** TC Developer
+> **Prereq:** `sed_drive_guide.md`
+> **See also:** `tc_authoring_guide.md` (이 레시피들을 시나리오로 묶는 패턴)
+
 복사-붙여넣기로 바로 쓸 수 있는 코드 레시피 모음입니다.
 모든 레시피는 `#include <cats.h>`와 `using namespace libsed;`를 가정합니다.
 

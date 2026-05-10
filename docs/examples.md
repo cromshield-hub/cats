@@ -1,5 +1,9 @@
 # TCG SED Examples Guide
 
+> **Audience:** TC Developer
+> **Prereq:** `tcg_sed_primer.md` ch.1–3
+> **See also:** `tc_authoring_guide.md` (직접 시나리오를 짤 때)
+
 20개 예제로 배우는 TCG SED 프로토콜 + libsed API 가이드.
 초보(Discovery)부터 전문가(Fault Injection, Custom Transport)까지 단계별 학습 경로.
 

@@ -35,10 +35,10 @@ int main() {
   destructive op, `--repeat N` for aging, and a JSON script runner for
   multi-op scenarios. Targets firmware engineers / QA / security
   evaluators. See [`docs/cats_cli_guide.md`](docs/cats_cli_guide.md).
-- **Byte-identical to sedutil-cli.** The `sed_compare` tool proves 68/68
-  packets byte-identical against sedutil-cli for 17 commands across
-  Tier 1 (ownership/revert), Tier 2 (locking/users), and Tier 3 (MBR/
-  DataStore/rekey).
+- **Byte-identical to sedutil-cli.** Real-hardware capture fixtures in
+  `tests/fixtures/golden/` validated by `golden_validator` are the
+  decisive ground truth; the lighter `ioctl_validator` (17 tests) covers
+  encoder-level sanity against a vendored sedutil reference.
 - **Transport-agnostic.** `NvmeTransport`, `AtaTransport`, `ScsiTransport`,
   plus `SimTransport` for hardware-free testing.
 - **104 scenario tests + 39-case cats-cli smoke** covering L1 unit → L6
@@ -73,7 +73,7 @@ cd build && ctest
 |--------|---------|-------------|
 | `LIBSED_BUILD_TESTS` | ON | Unit + scenario + integration tests |
 | `LIBSED_BUILD_EXAMPLES` | ON | 20 example programs in `examples/` |
-| `LIBSED_BUILD_TOOLS` | ON | CLI tools (`cats-cli`, `sed_discover`, `sed_manage`, `token_dump`, `sed_compare`) |
+| `LIBSED_BUILD_TOOLS` | ON | CLI tools (`cats-cli`, `sed_discover`, `sed_manage`, `token_dump`, `packet_decode`, `pwhash`) |
 | `LIBSED_BUILD_SHARED` | OFF | Shared (ON) vs static (OFF) library |
 
 ## Install
@@ -102,11 +102,11 @@ include/libsed/      Public headers
   ssc/               Opal / Enterprise / Pyrite convenience layers
 src/                 Implementation
 examples/            01-20 progressive learning examples
-tools/               cats-cli, sed_discover, sed_manage, token_dump, sed_compare
+tools/               cats-cli, sed_discover, sed_manage, token_dump, packet_decode, pwhash
 tests/               Unit, scenario, integration, mock/simulator transports
 docs/                Documentation — start at docs/README.md
-third_party/sedutil/ Subset of sedutil-cli sources used by sed_compare
-                     and ioctl_validator for wire-level comparison
+third_party/sedutil/ Subset of sedutil-cli sources used by ioctl_validator
+                     for wire-level encoder sanity checks
 ```
 
 ## Documentation
@@ -125,10 +125,10 @@ audience:
 
 ```bash
 cd build
-ctest                    # All registered test suites
-./tools/sed_compare      # Byte-identity proof against sedutil-cli
-./tests/ioctl_validator  # 17-test sedutil wire-format conformance
-./tests/scenario_tests   # 104 protocol scenarios on MockTransport + SimTransport
+ctest                       # All registered test suites
+./tests/golden_validator    # Real-HW byte fixtures vs libsed (decisive)
+./tests/ioctl_validator     # 17-test sedutil wire-format encoder sanity
+./tests/scenario_tests      # 104 protocol scenarios on MockTransport + SimTransport
 ```
 
 ## License

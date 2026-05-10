@@ -80,7 +80,11 @@ private:
 
 static bool scenario1_countingTransport(std::shared_ptr<ITransport> transport,
                                          uint16_t comId) {
-    scenario(1, "Counting Transport (Decorator Pattern)");
+    scenarioIntent(1, "Counting Transport (Decorator Pattern)",
+        { "ITransport 를 구현한 CountingTransport (decorator) 로 실 transport 를 감싸",
+          "ifSend / ifRecv 호출 횟수 + 누적 바이트 통계 수집." },
+        { "Discovery / Properties / MSID read 모두 CountingTransport 로 통과 OK",
+          "통계 출력 — sendCount / recvCount / total bytes" });
 
     // Wrap the real transport with our counter
     auto counting = std::make_shared<CountingTransport>(transport);
@@ -152,7 +156,11 @@ private:
 };
 
 static bool scenario2_filteringTransport(std::shared_ptr<ITransport> transport) {
-    scenario(2, "Filtering Transport (Block Stack Reset)");
+    scenarioIntent(2, "Filtering Transport (Block Stack Reset)",
+        { "특정 protocol id (0x02 = StackReset) 만 차단하는 decorator —",
+          "'어떤 op 가 사용 불가일 때' 동작 검증의 fault-injection 입문." },
+        { "Discovery (proto 0x01) 통과 — Success 가 정답",
+          "StackReset (proto 0x02) → 차단 (NEGATIVE — TransportSendFailed 가 정답)" });
 
     // Block protocol 0x02 (Stack Reset) while allowing everything else
     auto filtering = std::make_shared<FilteringTransport>(transport, 0x02);
@@ -176,7 +184,11 @@ static bool scenario2_filteringTransport(std::shared_ptr<ITransport> transport) 
 // ── Scenario 3: The ITransport Interface Contract ──
 
 static bool scenario3_interfaceDoc() {
-    scenario(3, "ITransport Interface Reference");
+    scenarioIntent(3, "ITransport Interface Reference",
+        { "ITransport 의 두 가상함수 ifSend / ifRecv 시그니처와 Built-in 구현체",
+          "(Nvme/Ata/Scsi/Sim/Logging) 의 빠른 reference 출력." },
+        { "ifSend / ifRecv 시그니처 출력",
+          "Built-in transport 구현체 목록 출력" });
 
     printf("    ITransport has exactly 2 methods to implement:\n\n");
 

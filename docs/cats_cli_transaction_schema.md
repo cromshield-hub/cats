@@ -1,5 +1,8 @@
 # `cats-cli eval transaction <script.json>` Schema v1
 
+> **Audience:** TC Developer
+> **See also:** `cats_cli_guide.md` (CLI 사용법)
+
 TC 평가 시나리오에서 **한 세션 안의 다수 연산을 스크립트 하나로 실행**하기 위한 JSON 스키마. 각 단계는 개별 `ComPacket`으로 전송되고 결과는 JSON 배열로 반환된다 (기본 stdout, `--json` 지정 시 machine-readable).
 
 ## 1. 전체 구조

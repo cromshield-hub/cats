@@ -6,6 +6,24 @@ the underlying TCG protocol.
 
 ---
 
+## Who are you?
+
+Three audiences read these docs. Pick the row that matches you and start
+from the listed entry points — every doc also carries an **Audience** banner
+at its top so you can confirm at a glance.
+
+| Audience | You are... | Start here |
+|----------|-----------|------------|
+| **TC Developer** | Writing tests / tools *on top of* libsed. Don't usually edit `src/`. | `sed_drive_guide.md` → `cookbook.md` → `examples.md` → **`tc_authoring_guide.md`** |
+| **Library Maintainer** | Modifying libsed itself (encoders, transports, composite logic). | `internal/hammurabi_code.md` → **`internal/postmortem_sedutil_compat.md`** → `internal/work_history.md` → `internal/architecture_rationale.md` |
+| **Common (everyone)** | Onboarding, protocol learning, wire-level reference. | `tcg_sed_primer.md` → `rosetta_stone.md` → this README |
+
+`internal/` files are mostly Korean (changelog / postmortem / design
+discussion); public docs are English. Both audiences share `tcg_sed_primer.md`
+and `rosetta_stone.md`.
+
+---
+
 ## Pick your path
 
 Different documents target different readers. Start here:
@@ -18,7 +36,10 @@ You need the high-level facade (`SedDrive`, `SedSession`).
 2. [`cookbook.md`](cookbook.md) — Copy-paste recipes for the 11 most common
    tasks (discovery, take ownership, range lock, MBR, DataStore, etc.).
 3. [`examples.md`](examples.md) — 20 progressive example programs.
-4. If you hit an error code or an auth failure, jump to
+4. [`tc_authoring_guide.md`](tc_authoring_guide.md) — How to write a *new*
+   TC: Mock vs Sim vs Real, the `scenarioIntent()` pattern, common
+   anti-patterns, and a debugging playbook.
+5. If you hit an error code or an auth failure, jump to
    [`examples.md`](examples.md) example 14 (Error Handling).
 
 ### I'm new to TCG SED — I need to understand the protocol first
@@ -62,24 +83,36 @@ Transaction script schema: [`cats_cli_transaction_schema.md`](cats_cli_transacti
 The tools in [`../tools/`](../tools/) have the byte-level answers.
 
 - `tools/cats-cli/` — full evaluation CLI (see `cats_cli_guide.md`).
-- `tools/sed_compare/` — byte-for-byte proof against `sedutil-cli` for
-  13 commands (Tier 1+2). Run `./build/tools/sed_compare`.
-- `tools/token_dump.cpp` — decode a hex stream into TCG tokens.
+- `tools/packet_decode.cpp` — decode a captured hex stream into a
+  ComPacket header + token tree (the recommended tool for analysing
+  user-captured wire dumps).
+- `tools/pwhash.cpp` — produce SHA-256 / PBKDF2-HMAC-SHA1 hashes of a
+  password (for cross-tool PIN comparison; see LAW 21).
+- `tools/token_dump.cpp` — decode a hex stream into TCG tokens (lighter
+  than `packet_decode`).
 - `tools/sed_discover.cpp` — quick one-shot discovery CLI.
 - `tools/sed_manage.cpp` — production-style admin CLI (ownership, lock,
   revert, user management).
+- For decisive wire validation, run `./build/tests/golden_validator`
+  against `tests/fixtures/golden/*.bin` (real-hardware capture).
+  `sed_compare` was retired in 2026-05 — see
+  `internal/postmortem_sedutil_compat.md` Theme 7.
 
 ### I'm contributing to libsed
 
 See [`internal/`](internal/) — those files are for contributors, not library
 users.
 
-- [`internal/hammurabi_code.md`](internal/hammurabi_code.md) — 15 immutable
+- [`internal/hammurabi_code.md`](internal/hammurabi_code.md) — 21 immutable
   laws derived from past bugs. Violate none.
+- [`internal/postmortem_sedutil_compat.md`](internal/postmortem_sedutil_compat.md) —
+  Narrative postmortem of the 2026-04~05 sedutil wire-compatibility effort.
+  7 themes, root cause → lesson, written for fresh maintainers (no
+  commit-by-commit detail).
 - [`internal/architecture_rationale.md`](internal/architecture_rationale.md) —
   Why the transport layer is split between `ITransport` and `INvmeDevice`.
 - [`internal/work_history.md`](internal/work_history.md) — Session-by-session
-  changelog.
+  changelog. Use the postmortem first; drill down here for details.
 
 ---
 
@@ -87,16 +120,22 @@ users.
 
 | Document | Audience | Purpose |
 |----------|----------|---------|
-| [`sed_drive_guide.md`](sed_drive_guide.md) | TC app developer | Quick start using the `SedDrive` facade |
-| [`cookbook.md`](cookbook.md) | TC app developer | 11 copy-paste recipes |
-| [`examples.md`](examples.md) | Any reader | Guide to the 20 example programs |
-| [`tcg_sed_primer.md`](tcg_sed_primer.md) | SED newcomer | 15-chapter TCG protocol tutorial |
-| [`eval_platform_guide.md`](eval_platform_guide.md) | Evaluation engineer | `EvalApi`, threading, NVMe DI, fault injection |
-| [`rosetta_stone.md`](rosetta_stone.md) | Wire-level debugger | Byte-exact encoding reference |
-| [`test_scenarios.md`](test_scenarios.md) | QA / TC evaluator | 104-scenario test catalog |
-| [`internal/hammurabi_code.md`](internal/hammurabi_code.md) | Contributor | Immutable encoding rules from past bugs |
-| [`internal/architecture_rationale.md`](internal/architecture_rationale.md) | Contributor | Why transport is split `ITransport` + `INvmeDevice` |
-| [`internal/work_history.md`](internal/work_history.md) | Contributor | Session log |
+| [`sed_drive_guide.md`](sed_drive_guide.md) | TC Developer | Quick start using the `SedDrive` facade |
+| [`cookbook.md`](cookbook.md) | TC Developer | 11 copy-paste recipes |
+| [`examples.md`](examples.md) | TC Developer | Guide to the 20 example programs |
+| [`tc_authoring_guide.md`](tc_authoring_guide.md) | TC Developer | How to write a new TC: env choice, intent pattern, debugging playbook |
+| [`eval_platform_guide.md`](eval_platform_guide.md) | TC Developer (wire-level) | `EvalApi`, threading, NVMe DI, fault injection |
+| [`test_scenarios.md`](test_scenarios.md) | TC Developer | 104-scenario test catalog |
+| [`cats_cli_guide.md`](cats_cli_guide.md) | TC Developer | `cats-cli` shell reference |
+| [`cats_cli_transaction_schema.md`](cats_cli_transaction_schema.md) | TC Developer | JSON transaction script schema |
+| [`tcg_sed_primer.md`](tcg_sed_primer.md) | Common | 15-chapter TCG protocol tutorial |
+| [`rosetta_stone.md`](rosetta_stone.md) | Common | Byte-exact encoding reference (TC + Maintainer) |
+| [`internal/hammurabi_code.md`](internal/hammurabi_code.md) | Maintainer | 21 immutable encoding rules from past bugs |
+| [`internal/postmortem_sedutil_compat.md`](internal/postmortem_sedutil_compat.md) | Maintainer | Narrative postmortem of 2026-04~05 sedutil compat work |
+| [`internal/architecture_rationale.md`](internal/architecture_rationale.md) | Maintainer | Why transport is split `ITransport` + `INvmeDevice` |
+| [`internal/work_history.md`](internal/work_history.md) | Maintainer | Session-by-session changelog |
+| [`internal/future_api_ideas.md`](internal/future_api_ideas.md) | Maintainer | Backlog ideas |
+| [`internal/cats_cli_review.md`](internal/cats_cli_review.md) | Maintainer | Design critique of `cats-cli` |
 
 ---
 

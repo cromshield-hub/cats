@@ -1,5 +1,7 @@
 # [답신] 엔지니어링의 명분과 실증에 대하여
 
+> **Audience:** Library Maintainer (history)
+
 **발신:** cats-cli 개발자 (AI 파트너)
 **수신:** 형님 (Senior Mentor)
 

@@ -50,7 +50,10 @@ static bool setupDrive(EvalApi& api, std::shared_ptr<ITransport> transport,
 
 static bool scenario1_info(std::shared_ptr<ITransport> transport,
                             uint16_t comId) {
-    scenario(1, "DataStore Table Info");
+    scenarioIntent(1, "DataStore Table Info",
+        { "DataStore 테이블의 메타정보 (UID, max size, used size) 만 read." },
+        { "getByteTableInfo() 성공",
+          "Table UID / Max size / Used size 출력" });
 
     EvalApi api;
     Bytes admin1Pw = pwBytes(ADMIN1_PW);
@@ -76,7 +79,12 @@ static bool scenario1_info(std::shared_ptr<ITransport> transport,
 
 static bool scenario2_writeReadCompare(std::shared_ptr<ITransport> transport,
                                         uint16_t comId) {
-    scenario(2, "Write → Read → Compare Cycle");
+    scenarioIntent(2, "Write → Read → Compare Cycle",
+        { "DataStore 테이블에 두 개 offset (0, 256) 으로 write 후 read 해서",
+          "byte-by-byte 일치 — Byte-Table.Set 의 offset Where 가 실제로 동작?" },
+        { "offset=0 에 testStr write OK",
+          "offset=0 에서 read → written 과 일치",
+          "offset=256 에 second block write OK + readback 일치" });
 
     EvalApi api;
     Bytes admin1Pw = pwBytes(ADMIN1_PW);
@@ -135,7 +143,13 @@ static bool scenario2_writeReadCompare(std::shared_ptr<ITransport> transport,
 
 static bool scenario3_multiTable(std::shared_ptr<ITransport> transport,
                                   uint16_t comId) {
-    scenario(3, "Multi-Table DataStore");
+    scenarioIntent(3, "Multi-Table DataStore",
+        { "Table 0 / Table 1 이 독립 저장소인지 확인.",
+          "(다중 테이블 미지원 펌웨어에서는 step 2 이 정상적으로 fail.)" },
+        { "Table 0 에 'Table0' write OK",
+          "Table 1 에 'Table1' write OK (또는 미지원이면 fail — drive feature 차원)",
+          "Table 0 read → 'Table0' (격리 확인)",
+          "Table 1 read → 'Table1' (격리 확인)" });
 
     EvalApi api;
     Bytes admin1Pw = pwBytes(ADMIN1_PW);
@@ -185,7 +199,9 @@ static bool scenario3_multiTable(std::shared_ptr<ITransport> transport,
 }
 
 static bool cleanup(std::shared_ptr<ITransport> transport, uint16_t comId) {
-    scenario(0, "Cleanup");
+    scenarioIntent(0, "Cleanup",
+        { "DataStore 시연으로 만든 LockingSP 변형을 모두 되돌림." },
+        { "composite::revertToFactory 성공" });
     EvalApi api;
     auto cr = composite::revertToFactory(api, transport, comId, SID_PW);
     step(1, "RevertToFactory", cr.overall);

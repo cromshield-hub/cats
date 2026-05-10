@@ -6,6 +6,8 @@ type: project
 
 # cats-cli 초기 구현 리뷰 & 보완 기록
 
+> **Audience:** Library Maintainer
+
 **대상 파일**: `tools/cats-cli/main.cpp` (초기 ~256 lines), `CMakeLists.txt`의 cats-cli 섹션
 **기준 문서**: `/home/cromshield/.gemini/tmp/cats/.../plans/cats-cli-design.md` (§1~§12)
 **기준 플랜**: `/home/cromshield/.claude/plans/keen-dazzling-platypus.md`

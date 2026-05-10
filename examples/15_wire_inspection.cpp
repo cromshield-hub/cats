@@ -43,7 +43,11 @@
 
 static bool scenario1_propertiesWire(std::shared_ptr<ITransport> transport,
                                       uint16_t comId) {
-    scenario(1, "Properties Exchange — Wire Format");
+    scenarioIntent(1, "Properties Exchange — Wire Format",
+        { "LoggingTransport 로 transport 를 감싸고 Properties 교환을 한 번 — 와이어",
+          "바이트 hex 덤프와 ComPacket/Packet/SubPacket/Token 헤더 구조도 출력." },
+        { "exchangeProperties 성공",
+          "ComPacket(20B) + Packet(24B) + SubPacket(12B) + Token payload 의 ASCII art 출력" });
 
     // Wrap transport with logging to capture raw packets
     auto loggingTransport = debug::LoggingTransport::wrapDump(transport);
@@ -89,7 +93,12 @@ static bool scenario1_propertiesWire(std::shared_ptr<ITransport> transport,
 
 static bool scenario2_sessionWire(std::shared_ptr<ITransport> transport,
                                    uint16_t comId) {
-    scenario(2, "StartSession/SyncSession — Wire Format");
+    scenarioIntent(2, "StartSession/SyncSession — Wire Format",
+        { "익명 세션 한 사이클 — TSN/HSN 이 SyncSession 응답에서 어떻게 잡히고",
+          "이후 모든 패킷 헤더에 들어가는지 hex dump 로 관찰." },
+        { "StartSession 성공",
+          "TSN ≥ 1 (TPer 발급), HSN (Host 제안) 출력",
+          "CloseSession 의 0xFA token 송신 확인" });
 
     auto loggingTransport = debug::LoggingTransport::wrapDump(transport);
 
@@ -117,7 +126,12 @@ static bool scenario2_sessionWire(std::shared_ptr<ITransport> transport,
 
 static bool scenario3_rawSendRecv(std::shared_ptr<ITransport> transport,
                                    uint16_t comId) {
-    scenario(3, "Raw Discovery Response Bytes");
+    scenarioIntent(3, "Raw Discovery Response Bytes",
+        { "Discovery 응답은 ComPacket 이 아니라 Discovery Header (48B) + Feature",
+          "Descriptor 가 이어지는 별개 포맷 — 그 구조를 손으로 walk." },
+        { "discovery0Raw() 성공",
+          "Total length / Major / Minor / Reserved 출력",
+          "첫 Feature Descriptor 의 code/version/length + hex dump" });
 
     EvalApi api;
     Bytes rawResp;
@@ -157,7 +171,11 @@ static bool scenario3_rawSendRecv(std::shared_ptr<ITransport> transport,
 
 static bool scenario4_explicitLogFile(std::shared_ptr<ITransport> transport,
                                        uint16_t comId) {
-    scenario(4, "Explicit Log File (Rosetta-Stone decoded + raw hex)");
+    scenarioIntent(4, "Explicit Log File (Rosetta-Stone decoded + raw hex)",
+        { "wrapToFile 로 transport 한 번 호출의 와이어 트래픽을 파일에 archive.",
+          "decoded one-liner + raw hex 둘 다 verbosity 무관하게 기록." },
+        { "Properties exchange 성공 + 로그 파일 생성",
+          "파일 첫 ~20 줄 미리보기 출력 (decoded + hex 혼합)" });
 
     const std::string logPath = "/tmp/15_wire_inspection.sed.log";
     std::remove(logPath.c_str());

@@ -1,5 +1,7 @@
 # TC 라이브러리 누락 API / 개선 필요 사항
 
+> **Audience:** Library Maintainer
+>
 > 이 문서는 현재 libsed 라이브러리에서 TC 개발자가 필요로 할 수 있지만
 > 아직 구현되지 않은 API와 개선이 필요한 영역을 정리합니다.
 

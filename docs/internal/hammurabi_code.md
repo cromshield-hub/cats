@@ -1,5 +1,8 @@
 # Code of Hammurabi — libsed Immutable Laws
 
+> **Audience:** Library Maintainer
+> **See also:** `postmortem_sedutil_compat.md` (these laws in narrative form), `work_history.md` (timeline)
+
 These laws are written in the blood of 17+ bugs that caused real hardware failures.
 Every law has a specific bug that created it. Violate none.
 
@@ -299,22 +302,25 @@ mistake. Cf. LAW 13 recent example, LAW 17.
 
 ---
 
-## LAW 17: golden_validator with hardware fixtures > sed_compare with hand-rolled refs
+## LAW 17: golden_validator with hardware fixtures > hand-rolled refs
 
-`sed_compare`'s `DtaCommand` reference is **NOT** ground truth. Two
+Hand-rolled `DtaCommand`-style references are **NOT** ground truth. Two
 implementations sharing the same TCG misreading produce matching but wrong
-bytes — `sed_compare` passes, real hardware rejects. The same applies to
-the hand-rolled `ioctl_validator` references.
+bytes — the test passes, real hardware rejects. This applies to
+`ioctl_validator`'s hand-rolled references and applied equally to the
+former `tools/sed_compare/` (which was retired in 2026-05 because its role
+was a strict subset of golden_validator + ioctl_validator and its 100% PASS
+rate during the CellBlock/Set.Where regressions actively misled the team).
 
 **Authority order (encoding correctness):**
 
 ```
 1. golden_validator with .bin fixtures captured from real hardware
-2. sed_compare / ioctl_validator (sanity check only)
+2. ioctl_validator (encoder-level sanity, hand-rolled reference)
 ```
 
 When adding new commands:
-- `sed_compare` PASS = **encoding looks consistent with our own assumptions**
+- `ioctl_validator` PASS = **encoding looks consistent with our own assumptions**
 - `golden_validator` PASS = **encoding is what real hardware actually accepts**
 
 Both matter, but only golden_validator is decisive. A level-3 PASS by
@@ -322,16 +328,19 @@ itself is not evidence of correctness.
 
 **Process for new operation:**
 1. Implement encoding from spec.
-2. Add hand-rolled reference to `sed_compare` / `ioctl_validator` (level 3).
+2. Add hand-rolled reference to `ioctl_validator` (level 3).
 3. Capture sedutil bytes on real hardware → `tests/fixtures/golden/*.bin`.
 4. Add `golden_validator` builder for the operation (level 1).
 5. Only call the encoding "validated" when both pass.
 
-**Why:** CellBlock bug (LAW 16) survived 100% of `sed_compare` runs for ~9
+**Why:** CellBlock bug (LAW 16) survived 100% of validator runs for ~9
 days because the test ran a wrong vs wrong comparison. `golden_validator`
 infrastructure (`tests/integration/golden_validator.cpp`,
-`tests/fixtures/golden/`) was added to break this circular validation. See
-also rosetta_stone.md §15 (Validation Hierarchy).
+`tests/fixtures/golden/`) was added to break this circular validation. The
+`sed_compare` tool was a parallel level-3 channel that *also* PASSed during
+that window; once `golden_validator` was in place, `sed_compare` provided
+no marginal signal beyond `ioctl_validator` and was retired. See also
+rosetta_stone.md §15 (Validation Hierarchy).
 
 ---
 

@@ -36,7 +36,11 @@
 
 static bool scenario1_notAuthorized(std::shared_ptr<ITransport> transport,
                                      uint16_t comId) {
-    scenario(1, "NotAuthorized — Wrong Password");
+    scenarioIntent(1, "NotAuthorized — Wrong Password",
+        { "잘못된 비번으로 SID 인증 시도 — NotAuthorized 가 정답.",
+          "(NEGATIVE 시나리오 — auth error 가 떠야 PASS.)" },
+        { "startSessionWithAuth (wrong PIN) → 실패 (NEGATIVE — auth 거절이 정답)",
+          "Result.code() 가 AuthFailed..AuthLockedOut 범위인지 확인" });
 
     EvalApi api;
 
@@ -65,7 +69,11 @@ static bool scenario1_notAuthorized(std::shared_ptr<ITransport> transport,
 
 static bool scenario2_spDisabled(std::shared_ptr<ITransport> transport,
                                   uint16_t comId) {
-    scenario(2, "SPDisabled — Locking SP Not Activated");
+    scenarioIntent(2, "SPDisabled — Locking SP Not Activated",
+        { "Manufactured-Inactive 상태의 LockingSP 에 세션 시도 — SPDisabled 가 정답.",
+          "이미 activated 된 드라이브에서는 자연스럽게 skip 처리." },
+        { "lockingEnabled 면 skip",
+          "아니면 startSession(SP_LOCKING) → 실패 (NEGATIVE — SPDisabled 가 정답)" });
 
     EvalApi api;
     DiscoveryInfo info;
@@ -93,7 +101,12 @@ static bool scenario2_spDisabled(std::shared_ptr<ITransport> transport,
 
 static bool scenario3_invalidParam(std::shared_ptr<ITransport> transport,
                                     uint16_t comId) {
-    scenario(3, "InvalidParameter — Bad Method Arguments");
+    scenarioIntent(3, "InvalidParameter — Bad Method Arguments",
+        { "존재하지 않는 row UID 로 tableGet — InvalidParameter / method-level 에러가 정답.",
+          "method-level 실패가 라이브러리에서 어떻게 표현되는지 확인." },
+        { "익명 세션 open OK",
+          "tableGet(0xDEADBEEF...) → 실패 (NEGATIVE — InvalidParameter 류가 정답)",
+          "세션 close" });
 
     EvalApi api;
 
@@ -116,7 +129,11 @@ static bool scenario3_invalidParam(std::shared_ptr<ITransport> transport,
 // ── Scenario 4: Transport errors ──
 
 static bool scenario4_transportErrors() {
-    scenario(4, "Transport Errors");
+    scenarioIntent(4, "Transport Errors",
+        { "존재하지 않는 디바이스 경로로 transport 생성/사용 — transport-layer 실패가 정답.",
+          "에러 layer 분리 (transport vs protocol vs method) 의 가시화." },
+        { "createNvme(bad path) — 생성 자체 실패하거나",
+          "ifRecv 에서 transport-layer 실패 (NEGATIVE — 둘 중 하나가 정답)" });
 
     // Try to open a transport to a non-existent device
     auto transport = TransportFactory::createNvme("/dev/nvme_nonexistent_99");
@@ -142,7 +159,11 @@ static bool scenario4_transportErrors() {
 // ── Scenario 5: Error code ranges ──
 
 static bool scenario5_errorCodeRanges() {
-    scenario(5, "Error Code Ranges Reference");
+    scenarioIntent(5, "Error Code Ranges Reference",
+        { "ErrorCode 의 범위 (Transport 100-199 등) 와 MethodStatus key 값들의",
+          "참조 표를 한 번 더 출력 — debugging 시 reference." },
+        { "ErrorCode 범위 표 출력",
+          "MethodStatus 주요 코드 (NotAuthorized, SPBusy, SPDisabled, ...) 출력" });
 
     printf("    Transport errors:  100-199\n");
     printf("    Protocol errors:   200-299\n");

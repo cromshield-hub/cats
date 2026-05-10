@@ -1,5 +1,9 @@
 # TC 개발자 가이드
 
+> **Audience:** TC Developer
+> **Prereq:** `tcg_sed_primer.md` ch.1–3 (또는 SED 사전 지식)
+> **See also:** `cookbook.md` (레시피), `examples.md` (실행 예제), `tc_authoring_guide.md` (TC 저작)
+
 cats 라이브러리를 사용한 SED(Self-Encrypting Drive) 제어 가이드입니다.
 
 ---

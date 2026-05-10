@@ -36,23 +36,19 @@ static std::mutex g_printMutex;
 
 static bool setupDrive(EvalApi& api, std::shared_ptr<ITransport> transport,
                        uint16_t comId) {
-    printf("\n── Setup ───────────────────────────────────────────\n");
-    printf("목적:  SID 비번 → Locking SP 활성화 → Admin1 비번 설정 (멱등)\n");
-    printf("기대:  공장-상태이든 재실행이든 끝나면 Admin1 PIN = ADMIN1_PW.\n\n");
+    scenarioIntent(0, "Setup — SID 비번 + Locking SP 활성화 + Admin1 비번 (멱등)",
+        { "공장 상태이든 재실행이든 끝나면 Admin1 PIN = ADMIN1_PW 가 보장되도록",
+          "takeOwnership → Activate(Locking) → Admin1 PIN 설정을 idempotent 하게 진행." },
+        { "takeOwnership(SID_PW) — 공장이면 set, 이미 SID_PW 면 no-op",
+          "Lifecycle 읽기 → 0x08 이면 Activate, 0x09/0x0A 면 skip",
+          "Admin1 PIN probe 4 가지 (MSID / SID_PW / ADMIN1_PW / empty) 중 1개 hit" });
 
-    // ── [1/3] takeOwnership ─────────────────────────────
-    printf("[1/3] takeOwnership(SID_PW)\n");
-    printf("  의도: 공장이면 MSID→SID_PW 변경, 이미 SID_PW 면 멱등 no-op.\n");
-    printf("  예상: OK (또는 AlreadyOwnedDifferentCredential 이면 setup 중단).\n");
+    // [1/3] takeOwnership — 공장이면 MSID→SID_PW, 이미 SID_PW 면 멱등 no-op
     auto cr = composite::takeOwnership(api, transport, comId, SID_PW);
-    printf("  결과: %s\n\n", cr.ok() ? "OK" : cr.overall.message().c_str());
+    step(1, "takeOwnership (idempotent)", cr.overall);
     if (cr.failed()) return false;
 
-    // ── [2/3] Activate(SP_LOCKING) ──────────────────────
-    printf("[2/3] Activate(SP_LOCKING) — SID 권한\n");
-    printf("  의도: Lifecycle=0x08(Manufactured-Inactive) 일 때만 Activate.\n");
-    printf("        이미 활성(0x09/0x0A) 이면 skip 하여 멱등 보장.\n");
-    printf("  예상: Lifecycle 읽기 OK + (활성화 OK 또는 skip).\n");
+    // [2/3] Activate(Locking SP) — Lifecycle=0x08 일 때만 수행
     Bytes sidPw = pwBytes(SID_PW);
     uint8_t lifecycle = 0;
     RawResult lcRaw;
@@ -65,56 +61,44 @@ static bool setupDrive(EvalApi& api, std::shared_ptr<ITransport> transport,
             return ErrorCode::Success;
         });
     const char* lcDesc =
-        lifecycle == 0x08 ? "Manufactured-Inactive — 활성화 수행" :
-        lifecycle == 0x09 ? "Manufactured — 이미 활성, skip" :
-        lifecycle == 0x0A ? "Issued — 이미 활성, skip" : "기타";
-    printf("  Lifecycle: 0x%02X (%s)\n", lifecycle, lcDesc);
-    printf("  결과: %s\n\n", r.ok() ? "OK" : r.message().c_str());
+        lifecycle == 0x08 ? "Manufactured-Inactive — activated" :
+        lifecycle == 0x09 ? "Manufactured — already active, skip" :
+        lifecycle == 0x0A ? "Issued — already active, skip" : "other";
+    printf("            -> Lifecycle 0x%02X (%s)\n", lifecycle, lcDesc);
+    step(2, "Activate Locking SP (idempotent)", r);
     if (r.failed()) return false;
 
-    // ── [3/3] Admin1 PIN 설정 ───────────────────────────
-    printf("[3/3] Admin1 PIN = ADMIN1_PW 설정\n");
-    printf("  배경: Opal 2.0 spec §5.1.5 — Activate 직후 Admin1 PIN 은\n");
-    printf("        'MSID 또는 vendor-defined'. 실측 벤더 변형 4 가지:\n");
-    printf("          (a) MSID       — spec 표준\n");
-    printf("          (b) SID_PW     — Activate 시 SID 전파 (Samsung 등)\n");
-    printf("          (c) ADMIN1_PW  — 이미 setup 된 재실행 케이스\n");
-    printf("          (d) empty      — 일부 구형 펌웨어\n");
-    printf("  방법: 위 순서로 probe — 처음 hit 전까지의 NotAuthorized 는\n");
-    printf("        의도된 정보 수집이며 에러가 아님.\n");
-    printf("  예상: 4 개 중 정확히 1 개가 OK. 모두 실패면 vendor 정책 미상.\n\n");
-
+    // [3/3] Admin1 PIN probe — Opal 2.0 §5.1.5 의 vendor 변형 4 가지 중 hit 찾기
+    // (앞쪽 NotAuthorized 는 정보 수집이며 에러가 아님 — stepExpect 로 표현)
     Bytes msid;
     composite::getMsid(api, transport, comId, msid);
 
-    auto admin1Probe = [&](const Bytes& cred, const char* label,
-                            const char* hint) -> Result {
-        printf("    Probe %-9s (%s) ... ", label, hint);
-        fflush(stdout);
-        auto rr = composite::withSession(api, transport, comId,
+    auto admin1Probe = [&](const Bytes& cred) {
+        return composite::withSession(api, transport, comId,
             uid::SP_LOCKING, true, uid::AUTH_ADMIN1, cred,
             [&](Session& s) { return api.setAdmin1Password(s, ADMIN1_PW); });
-        printf("%s\n", rr.ok() ? "*** HIT — Admin1 PIN 이 이 값이었음 ***"
-                                : rr.message().c_str());
-        return rr;
     };
 
-    auto r2 = admin1Probe(msid,                  "MSID",      "spec 표준");
-    if (r2.failed()) r2 = admin1Probe(sidPw,     "SID_PW",    "Activate 시 SID 전파 변형");
-    if (r2.failed()) r2 = admin1Probe(pwBytes(ADMIN1_PW),
-                                                  "ADMIN1_PW", "재실행 (이미 설정됨)");
-    if (r2.failed()) r2 = admin1Probe(Bytes{},   "empty",     "구형 펌웨어");
+    Result r2 = admin1Probe(msid);
+    const char* hit = r2.ok() ? "MSID (spec 표준)" : nullptr;
+    if (!hit) { r2 = admin1Probe(sidPw);                hit = r2.ok() ? "SID_PW (Activate 시 SID 전파 변형)" : nullptr; }
+    if (!hit) { r2 = admin1Probe(pwBytes(ADMIN1_PW));   hit = r2.ok() ? "ADMIN1_PW (재실행)" : nullptr; }
+    if (!hit) { r2 = admin1Probe(Bytes{});              hit = r2.ok() ? "empty (구형 펌웨어)" : nullptr; }
 
-    printf("\n  결과: %s\n", r2.ok() ? "OK — Admin1 PIN = ADMIN1_PW"
-                                       : "ALL FAILED — vendor 정책 미상");
-    printf("─────────────────────────────────────────────────────\n\n");
+    if (hit) printf("            -> Admin1 PIN was: %s\n", hit);
+    step(3, "Admin1 PIN probe (4 variants)", r2);
     return r2.ok();
 }
 
 // ── Scenario 1: SedDrive Multiple Login Sessions ──
 
 static bool scenario1_multiLogin(const char* device, cli::CliOptions& opts) {
-    scenario(1, "Multiple SedDrive Login Sessions");
+    scenarioIntent(1, "Multiple SedDrive Login Sessions",
+        { "같은 SP 에 두 개 동시 세션을 열어 격리(isolation) 검증.",
+          "(많은 펌웨어가 SP 당 1 세션으로 제한 — 그 경우 두 번째 login 실패가 자연스러운 결과)" },
+        { "Session 1 login(Locking SP, Admin1) 성공",
+          "Session 2 login → 성공이면 두 TSN 이 다른지 확인 + 양쪽 read 격리",
+          "Session 2 실패면 'multi-session 미지원' 메시지 + Session 1 close" });
 
     SedDrive drive(device);
     if (opts.dump) drive.enableDump(std::cerr, opts.dumpLevel);
@@ -166,7 +150,12 @@ static bool scenario1_multiLogin(const char* device, cli::CliOptions& opts) {
 
 static bool scenario2_sedContext(std::shared_ptr<ITransport> transport,
                                   uint16_t comId) {
-    scenario(2, "SedContext — Thread-Local Pattern");
+    scenarioIntent(2, "SedContext — Thread-Local Pattern",
+        { "SedContext 가 transport + EvalApi + Session + cached discovery 를",
+          "한 번에 묶어 thread 별 instance 로 사용하는 패턴 시연." },
+        { "SedContext::initialize() 성공 (ComID / SSC 출력)",
+          "ctx.openSession(Locking, Admin1) 성공 + TSN 출력",
+          "ctx.api() / ctx.session() 으로 read 호출 OK" });
 
     // SedContext bundles: transport + api + session + cached discovery
     // Each thread should create its own SedContext
@@ -202,7 +191,11 @@ static bool scenario2_sedContext(std::shared_ptr<ITransport> transport,
 
 static bool scenario3_threading(std::shared_ptr<ITransport> transport,
                                  uint16_t comId) {
-    scenario(3, "Multi-Threaded Discovery");
+    scenarioIntent(3, "Multi-Threaded Discovery",
+        { "EvalApi 가 stateless / thread-safe 라는 계약을 검증 — 3 개 thread 가",
+          "동시에 Discovery 호출해도 모두 같은 답을 받는다." },
+        { "3 thread 가 각자 EvalApi instance 로 discovery0() OK",
+          "모두 같은 SSC 인지 확인 (mutex 로 출력 직렬화)" });
 
     // Multiple threads can run Discovery concurrently
     // (Discovery doesn't require a session)
@@ -234,7 +227,9 @@ static bool scenario3_threading(std::shared_ptr<ITransport> transport,
 }
 
 static bool cleanup(std::shared_ptr<ITransport> transport, uint16_t comId) {
-    scenario(0, "Cleanup");
+    scenarioIntent(99, "Cleanup",
+        { "Multi-session 시연으로 변형된 LockingSP 상태를 모두 되돌림." },
+        { "composite::revertToFactory 성공" });
     EvalApi api;
     auto cr = composite::revertToFactory(api, transport, comId, SID_PW);
     step(1, "RevertToFactory", cr.overall);

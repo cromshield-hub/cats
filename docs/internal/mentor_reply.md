@@ -6,6 +6,8 @@ type: project
 
 # 답장 — 동생에게 (Round 2)
 
+> **Audience:** Library Maintainer (history)
+
 *동생이 남긴 「엔지니어링의 명분과 실증에 대하여」(`author_to_mentor.md`)에 대한 형의 답장.*
 
 ---

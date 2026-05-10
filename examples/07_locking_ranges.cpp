@@ -67,7 +67,13 @@ static bool setupDrive(EvalApi& api, std::shared_ptr<ITransport> transport,
 
 static bool scenario1_rangeLifecycle(std::shared_ptr<ITransport> transport,
                                       uint16_t comId) {
-    scenario(1, "Range 1: Configure → Lock → Unlock");
+    scenarioIntent(1, "Range 1: Configure → Lock → Unlock",
+        { "Range 1 을 LBA 0..1023 으로 설정하고 RLE/WLE 켠 뒤,",
+          "lock → 상태확인 → unlock → 상태확인 의 한 사이클." },
+        { "setRange (range/length/RLE/WLE) 성공",
+          "getRangeInfo 로 설정값 readback OK",
+          "setRangeLock(true,true) → readLocked/writeLocked = yes",
+          "setRangeLock(false,false) → 다시 unlocked 확인" });
 
     EvalApi api;
     Bytes admin1Pw = pwBytes(ADMIN1_PW);
@@ -140,7 +146,11 @@ static bool scenario1_rangeLifecycle(std::shared_ptr<ITransport> transport,
 
 static bool scenario2_globalRange(std::shared_ptr<ITransport> transport,
                                    uint16_t comId) {
-    scenario(2, "Global Range (Range 0) Inspection");
+    scenarioIntent(2, "Global Range (Range 0) Inspection",
+        { "Range 0 (Global Range) 의 현재 설정 + 잠금 상태 read.",
+          "Global Range 를 lock 하면 명시 할당된 range 외 전체 디스크가 잠긴다 — 주의." },
+        { "getRangeInfo(0) 성공",
+          "Global Range 의 start/length, RLE/WLE, lock 상태 출력" });
 
     EvalApi api;
     Bytes admin1Pw = pwBytes(ADMIN1_PW);
@@ -170,7 +180,11 @@ static bool scenario2_globalRange(std::shared_ptr<ITransport> transport,
 
 static bool scenario3_enumerateRanges(std::shared_ptr<ITransport> transport,
                                        uint16_t comId) {
-    scenario(3, "Enumerate All Locking Ranges");
+    scenarioIntent(3, "Enumerate All Locking Ranges",
+        { "getAllLockingInfo 로 한 호출에 모든 range 정보 수집.",
+          "Opal 표준 9 개 range 까지 일괄 표시." },
+        { "getAllLockingInfo(max=9) 성공",
+          "Range 0..N 에 대해 start/len/RLE/WLE/RL/WL 행 단위 출력" });
 
     EvalApi api;
     Bytes admin1Pw = pwBytes(ADMIN1_PW);
@@ -198,7 +212,10 @@ static bool scenario3_enumerateRanges(std::shared_ptr<ITransport> transport,
 // ── Cleanup ──
 
 static bool cleanup(std::shared_ptr<ITransport> transport, uint16_t comId) {
-    scenario(0, "Cleanup — Revert to Factory");
+    scenarioIntent(0, "Cleanup — Revert to Factory",
+        { "위 시나리오들이 만든 잠금/range 상태를 모두 되돌림.",
+          "RevertToFactory — SID 비번을 알고 있으므로 전체 데이터 영향 없음." },
+        { "composite::revertToFactory 성공" });
     EvalApi api;
     auto cr = composite::revertToFactory(api, transport, comId, SID_PW);
     step(1, "RevertToFactory", cr.overall);

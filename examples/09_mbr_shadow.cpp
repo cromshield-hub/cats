@@ -51,7 +51,12 @@ static bool setupDrive(EvalApi& api, std::shared_ptr<ITransport> transport,
 
 static bool scenario1_mbrControl(std::shared_ptr<ITransport> transport,
                                   uint16_t comId) {
-    scenario(1, "MBR Control — Enable and Done Flags");
+    scenarioIntent(1, "MBR Control — Enable and Done Flags",
+        { "MBRControl 의 Enable / Done 두 플래그 lifecycle 검증.",
+          "PBA boot 시뮬 전 단순 토글 → readback → 원위치." },
+        { "초기 MBR status read OK",
+          "Enable=true, Done=true 설정 후 readback 일치",
+          "Enable=false 로 원복" });
 
     EvalApi api;
     Bytes admin1Pw = pwBytes(ADMIN1_PW);
@@ -97,7 +102,12 @@ static bool scenario1_mbrControl(std::shared_ptr<ITransport> transport,
 
 static bool scenario2_mbrData(std::shared_ptr<ITransport> transport,
                                uint16_t comId) {
-    scenario(2, "MBR Data Write/Read");
+    scenarioIntent(2, "MBR Data Write/Read",
+        { "Shadow MBR 영역에 512B 'PBA image' 더미를 write 한 뒤 read 해서",
+          "동일성 확인 — Byte-Table.Set 의 offset wrap 확인 경로." },
+        { "writeMbrData(offset=0, 512B) 성공",
+          "readMbrData(offset=0, 512B) 성공",
+          "written == read (byte-by-byte 일치)" });
 
     EvalApi api;
     Bytes admin1Pw = pwBytes(ADMIN1_PW);
@@ -151,7 +161,13 @@ static bool scenario2_mbrData(std::shared_ptr<ITransport> transport,
 
 static bool scenario3_bootCycle(std::shared_ptr<ITransport> transport,
                                  uint16_t comId) {
-    scenario(3, "Boot Cycle Simulation");
+    scenarioIntent(3, "Boot Cycle Simulation",
+        { "PBA boot 의 두 페이즈를 시뮬 — Admin 이 MBRDone=false 로 두고,",
+          "별도 세션 (= power cycle 모방) 에서 PBA 가 Done=true 로 설정." },
+        { "Admin: setMbrEnable(true) + setMbrDone(false)",
+          "(power cycle 시뮬) — MBRDone 이 false 로 유지됨 확인",
+          "PBA: setMbrDone(true) → 실 디스크 노출",
+          "Cleanup: setMbrEnable(false)" });
 
     EvalApi api;
     Bytes admin1Pw = pwBytes(ADMIN1_PW);
@@ -196,7 +212,9 @@ static bool scenario3_bootCycle(std::shared_ptr<ITransport> transport,
 }
 
 static bool cleanup(std::shared_ptr<ITransport> transport, uint16_t comId) {
-    scenario(0, "Cleanup");
+    scenarioIntent(0, "Cleanup",
+        { "MBR 시연으로 변형된 LockingSP 상태를 모두 되돌림." },
+        { "composite::revertToFactory 성공" });
     EvalApi api;
     auto cr = composite::revertToFactory(api, transport, comId, SID_PW);
     step(1, "RevertToFactory", cr.overall);

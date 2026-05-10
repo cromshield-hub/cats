@@ -1,12 +1,16 @@
 # Rosetta Stone — TCG Packet Encoding Reference
 
+> **Audience:** Common (TC Developer + Library Maintainer)
+> **Prereq:** `tcg_sed_primer.md` ch.4 (token encoding 기본)
+> **See also:** `internal/hammurabi_code.md` (인코딩 법칙), `internal/postmortem_sedutil_compat.md` (encoder/decoder 비대칭의 배경)
+
 This document maps TCG spec → sedutil wire format → libsed code for every command type.
 When in doubt, the **wire bytes captured from sedutil-cli running on real
 hardware** are the truth — not hand-rolled `DtaCommand` references in
-`sed_compare` / `ioctl_validator`. See §15 (Validation Hierarchy) for the
-authority order. CellBlock encoding (§4d) was wrong in this doc and in the
-hand-rolled references for ~9 days because both shared the same misreading;
-real hardware capture finally caught it (2026-04-26).
+`ioctl_validator`. See §15 (Validation Hierarchy) for the authority order.
+CellBlock encoding (§4d) was wrong in this doc and in the hand-rolled
+references for ~9 days because both shared the same misreading; real
+hardware capture finally caught it (2026-04-26).
 
 ---
 
@@ -183,11 +187,12 @@ F9 F0 00 00 00 F1               EOD + status
 CellBlock key numbers per TCG Core Spec Table 32: 1=startRow, 2=endRow,
 3=startColumn, 4=endColumn. NOT 0/1.
 
-**Verified against real-hardware sedutil-cli hex dump** — NOT against
-`sed_compare`'s `DtaCommand` reference. From 2026-04-08 to 2026-04-26 this
-section incorrectly showed a flat (single-list) form, matching the
-hand-rolled reference but disagreeing with what real sedutil-cli actually
-sends to drives. Real-hardware capture (cats=35B vs sedutil=37B, diff = inner
+**Verified against real-hardware sedutil-cli hex dump** — NOT against the
+hand-rolled `DtaCommand` reference (which `sed_compare` used until that tool
+was retired in 2026-05). From 2026-04-08 to 2026-04-26 this section
+incorrectly showed a flat (single-list) form, matching the hand-rolled
+reference but disagreeing with what real sedutil-cli actually sends to
+drives. Real-hardware capture (cats=35B vs sedutil=37B, diff = inner
 `f0`/`f1` pair) corrected this. See LAW 16, LAW 17 in `hammurabi_code.md`.
 
 ### 4e. Object.Set with Values (in-session, TSN=N/HSN=105)
@@ -682,10 +687,10 @@ in **strict authority order**:
                 is NOT vendored here
 
 3. (suspect)  hand-rolled DtaCommand replicas in our test code
-              └ `tools/sed_compare/*.cpp` — written by humans/AI from spec
-              └ `tests/integration/ioctl_validator.cpp` — same
+              └ `tests/integration/ioctl_validator.cpp` — written by humans/AI from spec
               └ can drift from real sedutil if the author misreads the spec
               └ and matches libsed's identical misreading → false PASS
+              └ (`tools/sed_compare/` was retired in 2026-05 for this reason)
 
 4. (last)     spec text reading alone
               └ TCG Core Spec / Opal SSC PDFs
@@ -695,16 +700,16 @@ in **strict authority order**:
 
 ### Why this order matters
 
-`sed_compare` and `ioctl_validator` compare libsed's output to a hand-rolled
-reference (level 3). If the test author misread the spec the same way libsed
-did, both produce identical-but-wrong bytes → the test passes forever while
+`ioctl_validator` compares libsed's output to a hand-rolled reference
+(level 3). If the test author misread the spec the same way libsed did,
+both produce identical-but-wrong bytes → the test passes forever while
 real drives reject the packet on every run.
 
 This is not hypothetical. Real example: the CellBlock inner-list wrap
 (§4d) was removed from libsed in `d94a674` and from the rosetta_stone in
-the same commit, both based on level-3 reasoning. `sed_compare` and
-`ioctl_validator` both passed for ~9 days. Real-hardware capture from a user
-(level 1) finally exposed the divergence (`71a6818`).
+the same commit, both based on level-3 reasoning. `ioctl_validator` (and
+the now-retired `sed_compare`) both passed for ~9 days. Real-hardware
+capture from a user (level 1) finally exposed the divergence (`71a6818`).
 
 ### Decision rule
 
@@ -718,11 +723,11 @@ the same commit, both based on level-3 reasoning. `sed_compare` and
 ### Adding a new operation to libsed
 
 1. Implement encoding (best-effort from spec).
-2. Write level-3 reference in `sed_compare` / `ioctl_validator` (sanity
-   check; commit when matches).
+2. Write level-3 reference in `ioctl_validator` (sanity check; commit when
+   matches). LAW 17 explicitly demotes this layer to sanity-only.
 3. Capture sedutil's actual bytes on real hardware (level 1 fixture).
 4. Add `golden_validator` builder + fixture entry.
-5. Only when **all three** pass is the encoding considered validated.
+5. Only when **levels 1 and 3** pass is the encoding considered validated.
 
 If level 3 passes but level 1 fails, libsed AND the level-3 reference are
 both wrong — fix both.

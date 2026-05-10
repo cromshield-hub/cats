@@ -46,7 +46,11 @@ static void printCompositeResult(const CompositeResult& cr) {
 
 static bool scenario1_getMsid(std::shared_ptr<ITransport> transport,
                                uint16_t comId) {
-    scenario(1, "composite::getMsid()");
+    scenarioIntent(1, "composite::getMsid()",
+        { "openSession + getCPin(MSID) + closeSession 한 묶음 — composite 의 가장 단순한 예." },
+        { "composite::getMsid 성공",
+          "step 별 로그가 CompositeResult 에 누적됨",
+          "MSID 값 출력" });
 
     EvalApi api;
     Bytes msid;
@@ -64,7 +68,11 @@ static bool scenario1_getMsid(std::shared_ptr<ITransport> transport,
 
 static bool scenario2_takeOwnership(std::shared_ptr<ITransport> transport,
                                      uint16_t comId) {
-    scenario(2, "composite::takeOwnership()");
+    scenarioIntent(2, "composite::takeOwnership()",
+        { "MSID 읽기 → SID auth → setCPin(SID, new) 의 takeOwnership 한 묶음.",
+          "이 composite 는 idempotent — 같은 비번으로 두 번째 호출은 no-op success." },
+        { "composite::takeOwnership 성공",
+          "step 별 진척 로그 출력 (Read MSID / Auth / Set new SID PIN)" });
 
     EvalApi api;
 
@@ -79,7 +87,12 @@ static bool scenario2_takeOwnership(std::shared_ptr<ITransport> transport,
 
 static bool scenario3_activateAndSetup(std::shared_ptr<ITransport> transport,
                                         uint16_t comId) {
-    scenario(3, "composite::activateAndSetup()");
+    scenarioIntent(3, "composite::activateAndSetup()",
+        { "Activate Locking SP → Admin1 비번 set → User1 enable → User1 비번 set 의 4 단계.",
+          "초기 운영 가능 상태까지 한 호출로 진행." },
+        { "Activate LockingSP (SID 권한) 성공",
+          "Admin1 비번 set 성공",
+          "User1 enable + User1 비번 set 성공" });
 
     EvalApi api;
 
@@ -100,7 +113,10 @@ static bool scenario3_activateAndSetup(std::shared_ptr<ITransport> transport,
 
 static bool scenario4_configureRange(std::shared_ptr<ITransport> transport,
                                       uint16_t comId) {
-    scenario(4, "composite::configureRangeAndLock()");
+    scenarioIntent(4, "composite::configureRangeAndLock()",
+        { "Range 1 (LBA 0-1023) 을 설정 + 잠금 — 두 메서드 호출이 한 묶음." },
+        { "configureRangeAndLock 성공",
+          "step 로그: setRange / setRangeLock" });
 
     EvalApi api;
 
@@ -119,7 +135,10 @@ static bool scenario4_configureRange(std::shared_ptr<ITransport> transport,
 
 static bool scenario5_dataStoreRoundTrip(std::shared_ptr<ITransport> transport,
                                           uint16_t comId) {
-    scenario(5, "composite::dataStoreRoundTrip()");
+    scenarioIntent(5, "composite::dataStoreRoundTrip()",
+        { "DataStore 에 write → read → 원본과 비교를 한 호출로." },
+        { "composite::dataStoreRoundTrip 성공",
+          "step 로그: write / read / compare" });
 
     EvalApi api;
     Bytes testData = {'C', 'o', 'm', 'p', 'o', 's', 'i', 't', 'e', '!'};
@@ -136,7 +155,11 @@ static bool scenario5_dataStoreRoundTrip(std::shared_ptr<ITransport> transport,
 
 static bool scenario6_cryptoErase(std::shared_ptr<ITransport> transport,
                                    uint16_t comId) {
-    scenario(6, "composite::cryptoEraseAndVerify()");
+    scenarioIntent(6, "composite::cryptoEraseAndVerify()",
+        { "GenKey 로 Range 1 의 키 재생성 + 직후 read 가 다른 패턴인지 verify.",
+          "= crypto erase. 본 example 은 step logging 만 시연." },
+        { "cryptoEraseAndVerify(range=1) 성공",
+          "step 로그: GenKey / read / pattern-compare" });
 
     EvalApi api;
 
@@ -152,7 +175,11 @@ static bool scenario6_cryptoErase(std::shared_ptr<ITransport> transport,
 
 static bool scenario7_revert(std::shared_ptr<ITransport> transport,
                               uint16_t comId) {
-    scenario(7, "composite::revertToFactory()");
+    scenarioIntent(7, "composite::revertToFactory()",
+        { "이 example 이 만든 모든 변형을 되돌림.",
+          "AdminSP.Revert (UID 0x0202, SID 권한) 호출 — RevertSP (0x0011) 와 다름." },
+        { "composite::revertToFactory 성공",
+          "step 로그: SID auth / Revert / state 검증" });
 
     EvalApi api;
 

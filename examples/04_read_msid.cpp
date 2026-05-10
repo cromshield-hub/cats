@@ -42,7 +42,12 @@ static bool scenario1_and_2(std::shared_ptr<ITransport> transport,
     if (r.failed()) return false;
 
     // ── Scenario 1: getCPin for MSID and SID ──
-    scenario(1, "Read MSID and SID (getCPin)");
+    scenarioIntent(1, "Read MSID and SID (getCPin)",
+        { "C_PIN_MSID 와 C_PIN_SID 를 읽어 factory state 인지 확인.",
+          "factory 면 SID == MSID (또는 SID 가 비어있음), owned 면 다른 값." },
+        { "익명 세션 open",
+          "getCPin(MSID) 성공 — ASCII / hex 출력",
+          "getCPin(SID) — factory: 비거나 MSID 와 동일 / owned: 다름" });
 
     Bytes msidPin;
     r = api.getCPin(session, uid::CPIN_MSID, msidPin);
@@ -70,7 +75,12 @@ static bool scenario1_and_2(std::shared_ptr<ITransport> transport,
     }
 
     // ── Scenario 2: Generic tableGet (same session!) ──
-    scenario(2, "Generic Table Get on C_PIN (same session)");
+    scenarioIntent(2, "Generic Table Get on C_PIN (same session)",
+        { "위 세션을 닫지 않고 그대로 재사용해 generic tableGet 으로",
+          "C_PIN 의 column 3-4 (PIN, CharSet) 만 선별 read." },
+        { "tableGet(CPIN_MSID, cols 3-4) 성공",
+          "column 단위 token 디코드 결과 출력 (bytes / atom)",
+          "한 세션에서 모든 read 끝낸 뒤 close" });
 
     // C_PIN columns: 0=UID, 1=Name, 2=CommonName, 3=PIN,
     //                4=CharSet, 5=TryLimit, 6=Tries, 7=Persistence
@@ -110,7 +120,11 @@ static bool scenario1_and_2(std::shared_ptr<ITransport> transport,
 // session reuse.
 
 static bool scenario3_facadeMsid(const char* device, cli::CliOptions& opts) {
-    scenario(3, "Read MSID via SedDrive");
+    scenarioIntent(3, "Read MSID via SedDrive",
+        { "SedDrive::query() 가 내부적으로 MSID 까지 읽어 cache.",
+          "이후 drive.msid() 만 호출하면 추가 세션 없이 값 획득." },
+        { "SedDrive::query() 성공",
+          "drive.msid() 가 비어있지 않음 — 캐시된 값 출력" });
 
     SedDrive drive(device);
     if (opts.dump) drive.enableDump(std::cerr, opts.dumpLevel);

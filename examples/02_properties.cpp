@@ -32,7 +32,11 @@
 
 static bool scenario1_evalProperties(std::shared_ptr<ITransport> transport,
                                       uint16_t comId) {
-    scenario(1, "Properties Exchange via EvalApi");
+    scenarioIntent(1, "Properties Exchange via EvalApi",
+        { "SM 메서드 0xFF01 을 직접 보내고 TPer 가 reporting 하는 limit 을 받는다.",
+          "모든 후속 세션 통신은 이 값에 맞춰서 패킷이 만들어진다." },
+        { "exchangeProperties() 성공",
+          "TPer Properties (MaxComPacketSize / MaxPacketSize / MaxIndTokenSize 등) 출력" });
 
     EvalApi api;
     PropertiesResult props;
@@ -62,7 +66,11 @@ static bool scenario1_evalProperties(std::shared_ptr<ITransport> transport,
 
 static bool scenario2_customProperties(std::shared_ptr<ITransport> transport,
                                         uint16_t comId) {
-    scenario(2, "Custom Properties Request");
+    scenarioIntent(2, "Custom Properties Request",
+        { "Host 가 64KB 같은 큰 값을 제안해보고, TPer 가 받아주는지 / clamp 하는지",
+          "관찰 — 펌웨어별 한계를 확인하는 진단 절차." },
+        { "exchangePropertiesCustom() 성공",
+          "TPer 의 응답이 accepted 인지 clamped 인지 표시" });
 
     EvalApi api;
     PropertiesResult props;
@@ -94,7 +102,11 @@ static bool scenario2_customProperties(std::shared_ptr<ITransport> transport,
 // session communication.
 
 static bool scenario3_facadeAuto(const char* device, cli::CliOptions& opts) {
-    scenario(3, "SedDrive Automatic Properties");
+    scenarioIntent(3, "SedDrive Automatic Properties",
+        { "SedDrive::query() 가 내부적으로 Properties 를 한 번 교환하고",
+          "결과를 cache — 호출자는 maxComPacketSize() 같은 accessor 만 쓰면 된다." },
+        { "SedDrive::query() 성공",
+          "drive.comId() / drive.maxComPacketSize() 출력 (모두 cached)" });
 
     SedDrive drive(device);
     if (opts.dump) drive.enableDump(std::cerr, opts.dumpLevel);

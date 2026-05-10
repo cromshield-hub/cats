@@ -1,5 +1,9 @@
 # TCG SED Evaluation Library — Developer Guide
 
+> **Audience:** TC Developer (wire-level)
+> **Prereq:** `sed_drive_guide.md`, `tcg_sed_primer.md` ch.1–6
+> **See also:** `rosetta_stone.md` (인코딩 레퍼런스), `tc_authoring_guide.md`
+>
 > **Version**: 1.0
 > **Target**: TC Library 평가 플랫폼 개발자
 > **Language**: C++17

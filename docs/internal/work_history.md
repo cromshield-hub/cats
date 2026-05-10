@@ -1,5 +1,63 @@
 # Work History
 
+> **Audience:** Library Maintainer
+> **See also:** `postmortem_sedutil_compat.md` (Session 2026-04-27~05-07 의 narrative 요약), `hammurabi_code.md` (도출된 LAW)
+
+## Session 2026-05-08 — TC 문서 정비 + sed_compare 폐기
+
+### What was done
+
+1. 신규 문서 두 개 작성 (한국어):
+   - `docs/internal/postmortem_sedutil_compat.md` — 7 테마 narrative
+     포스트모템. 신규 maintainer 가 commit 추적 없이 사양 호환 작업의
+     함정을 학습할 수 있도록.
+   - `docs/tc_authoring_guide.md` — TC 저작 가이드. Mock/Sim/Real 결정,
+     scenarioIntent 표준, 안티패턴, 디버깅 플레이북.
+2. `docs/README.md` 상단에 3-way Audience 표 (TC Developer / Maintainer /
+   Common). 모든 `docs/*.md` 와 `docs/internal/*.md` H1 직후에
+   `> **Audience:** ...` 헤더 박스 삽입. 디렉토리 재배치는 하지 않음.
+3. examples 14 개 (01,02,03,04,07,09,10,13,14,15,16,17,19,20) 의 53 개
+   `scenario(...)` 호출을 `scenarioIntent(...)` 로 일괄 전환. 19 의 옛
+   "setupDrive printf intent" 패턴도 표준 형식으로 수렴.
+4. `tools/sed_compare/` 폐기 — 약 1450 LoC, 18 commands. CMake 타겟 +
+   CTest 등록 제거. `third_party/sedutil/` 자체는 `ioctl_validator` 가
+   계속 사용하므로 보존.
+
+### sed_compare 폐기 근거
+
+LAW 17 의 validation hierarchy 재정비 후, `sed_compare` 의 역할이
+`ioctl_validator` (level-3 sanity) 와 `golden_validator` (level-1
+decisive) 의 부분집합이 됨. 동일 level-3 채널이 두 개 — `false confidence`
+가 두 배. CellBlock (LAW 16) / Set.Where (LAW 3) 회귀가 9-10 일간
+`sed_compare` PASS 를 받으며 잠복했던 사례가 결정적이었음. 폐기 시점에
+`sed_compare` 는 그 위험을 *유지*했지 *해소*하지 않았다.
+
+ioctl_validator (17 tests) 는 더 좁고 초점이 분명해 같은 위험에 덜
+노출됨 + 같은 third_party/sedutil vendoring 을 공유.
+
+### 검증
+
+- 클린 reconfigure → 빌드 클린, ctest 4/5 PASS (cats_cli_smoke 의 기존
+  permission denied 만 fail, 무관).
+- `rg sed_compare` 잔여 참조는 모두 historical (cats_cli_review,
+  work_history 의 옛 세션) — narrative 기록이므로 그대로 둠.
+
+### 핵심 변경 파일
+
+| 파일 | 역할 |
+|------|------|
+| `docs/internal/postmortem_sedutil_compat.md` | 신규 narrative 포스트모템 |
+| `docs/tc_authoring_guide.md` | 신규 TC 저작 가이드 |
+| `docs/README.md` | 상단 3-way Audience 표 + Document map 확장 |
+| `docs/*.md`, `docs/internal/*.md` (15개) | H1 직후 Audience 헤더 박스 |
+| `docs/internal/hammurabi_code.md` LAW 17 | sed_compare 폐기 사실 명문화 |
+| `docs/rosetta_stone.md` §15, §4d, §4e | sed_compare 인용 → ioctl_validator |
+| `examples/01,02,03,04,07,09,10,13,14,15,16,17,19,20.cpp` | scenarioIntent() 전환 |
+| `CMakeLists.txt` (line 308–348 영역) | sed_compare add_executable + add_test 블록 제거 |
+| `tools/sed_compare/` (전체 디렉토리) | 삭제 |
+
+---
+
 ## Session 2026-04-28 ~ 2026-05-07 — Wire 비교 기반 8 commit 일괄 정리
 
 ### Trigger

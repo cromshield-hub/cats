@@ -27,7 +27,12 @@
 // For a first look at the drive, this is the easiest approach.
 
 static bool scenario1_facadeQuery(const char* device, cli::CliOptions& opts) {
-    scenario(1, "Quick Discovery via SedDrive");
+    scenarioIntent(1, "Quick Discovery via SedDrive",
+        { "SedDrive::query() 한 번 호출로 Discovery + Properties + MSID 까지 묶어서",
+          "끝낸다 — '드라이브가 어떤 SED 인지' 한눈에 보는 가장 짧은 경로." },
+        { "SedDrive::query() 성공",
+          "SSC / ComID / MaxComPacketSize / TPer / Locking / MBR 정보 출력",
+          "MSID (또는 owned 드라이브의 경우 restricted 표시)" });
 
     // SedDrive wraps transport creation internally
     SedDrive drive(device);
@@ -77,7 +82,11 @@ static bool scenario1_facadeQuery(const char* device, cli::CliOptions& opts) {
 // use when you need to inspect specific features or extract raw data.
 
 static bool scenario2_rawDiscovery(std::shared_ptr<ITransport> transport) {
-    scenario(2, "Raw Discovery via EvalApi");
+    scenarioIntent(2, "Raw Discovery via EvalApi",
+        { "EvalApi::discovery0() 로 파싱된 DiscoveryInfo 를 직접 다룬다.",
+          "Feature Descriptor 단위로 검사가 필요할 때의 진입점." },
+        { "EvalApi::discovery0() 성공",
+          "DiscoveryInfo 의 version / primary SSC / feature flag 출력" });
 
     EvalApi api;
     DiscoveryInfo info;
@@ -109,7 +118,12 @@ static bool scenario2_rawDiscovery(std::shared_ptr<ITransport> transport) {
 //   - Comparing with sedutil output
 
 static bool scenario3_rawBytes(std::shared_ptr<ITransport> transport) {
-    scenario(3, "Raw Discovery Bytes");
+    scenarioIntent(3, "Raw Discovery Bytes",
+        { "discovery0Raw() 로 파싱 전 원시 응답을 받아 헤더(48B) 와 Feature",
+          "Descriptor 들을 직접 walk — sedutil 출력과 byte 비교할 때 쓰는 경로." },
+        { "discovery0Raw() 성공",
+          "Header length 와 48B header hex 덤프",
+          "Feature code 별 descriptor 나열 (TPer/Locking/Geometry/Opal/...)" });
 
     EvalApi api;
     Bytes rawResponse;

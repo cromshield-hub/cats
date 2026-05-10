@@ -37,7 +37,12 @@
 
 static bool scenario1_anonymousSession(std::shared_ptr<ITransport> transport,
                                         uint16_t comId) {
-    scenario(1, "Anonymous Read Session to Admin SP");
+    scenarioIntent(1, "Anonymous Read Session to Admin SP",
+        { "credential 없이 read-only 세션 — 공개 테이블만 읽을 수 있다.",
+          "TSN/HSN 발급, 세션 활성/비활성 전이, close 까지 lifecycle 일주." },
+        { "startSession (write=false) 성공",
+          "TSN ≥ 1, HSN 표시 + isActive() = yes",
+          "closeSession() 성공, isActive() = no" });
 
     EvalApi api;
 
@@ -76,7 +81,12 @@ static bool scenario1_anonymousSession(std::shared_ptr<ITransport> transport,
 
 static bool scenario2_authenticatedSession(std::shared_ptr<ITransport> transport,
                                             uint16_t comId) {
-    scenario(2, "Authenticated Write Session (SID auth)");
+    scenarioIntent(2, "Authenticated Write Session (SID auth)",
+        { "factory-state 드라이브에서 MSID 로 SID 인증 — write 세션 확보.",
+          "이미 owned 인 드라이브에서는 NotAuthorized 가 자연스러우므로 skip 처리." },
+        { "익명 세션 + getCPin(MSID) 성공 (또는 owned 면 skip)",
+          "MSID 로 startSessionWithAuth() 성공 (factory state 의 정답)",
+          "write 세션 close" });
 
     EvalApi api;
 
@@ -134,7 +144,12 @@ static bool scenario2_authenticatedSession(std::shared_ptr<ITransport> transport
 // SedSession is RAII — the session is closed when the object is destroyed.
 
 static bool scenario3_facadeSession(const char* device, cli::CliOptions& opts) {
-    scenario(3, "SedDrive RAII Sessions");
+    scenarioIntent(3, "SedDrive RAII Sessions",
+        { "SedSession 은 RAII — destructor 가 자동 close 호출.",
+          "scope 밖으로 나가면 세션이 자동 정리되는지 확인." },
+        { "SedDrive::query() 성공",
+          "loginAnonymous() 성공 + isActive() = yes",
+          "scope 종료 시 destructor 가 close — '세션 닫힘' 메시지" });
 
     SedDrive drive(device);
     if (opts.dump) drive.enableDump(std::cerr, opts.dumpLevel);
@@ -169,7 +184,11 @@ static bool scenario3_facadeSession(const char* device, cli::CliOptions& opts) {
 
 static bool scenario4_withSession(std::shared_ptr<ITransport> transport,
                                    uint16_t comId) {
-    scenario(4, "withSession Callback Pattern");
+    scenarioIntent(4, "withSession Callback Pattern",
+        { "composite::withAnonymousSession 으로 open → 사용자 lambda 실행 → close",
+          "를 한 호출로 — one-shot 작업의 정형 패턴." },
+        { "withAnonymousSession 으로 MSID 읽기 성공",
+          "lambda 종료 후 세션 자동 close" });
 
     EvalApi api;
     Bytes msid;

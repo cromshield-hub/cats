@@ -6,6 +6,8 @@ type: project
 
 # 동생에게
 
+> **Audience:** Library Maintainer (history)
+
 *cats-cli 두 라운드의 리뷰를 마치고, 형으로서 하고 싶은 말을 편지로 남긴다.*
 
 ---

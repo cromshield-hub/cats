@@ -1,5 +1,8 @@
 # TCG SED Test Scenarios (TCG SED 테스트 시나리오)
 
+> **Audience:** TC Developer
+> **See also:** `tc_authoring_guide.md` (어떻게 새 시나리오를 작성하는가), `examples.md`
+>
 > **Version**: 1.0 | **Date**: 2026-04-06 | **Library**: CATS (libsed)
 
 ## 목적
@@ -2399,7 +2402,7 @@ switch (option.sscType) {
 | `include/libsed/eval/eval_types.h` | Result 구조체 |
 | `docs/internal/hammurabi_code.md` | 15 인코딩 불변법칙 (기여자용) |
 | `docs/rosetta_stone.md` | 바이트 인코딩 참조 |
-| `tests/integration/ioctl_validator.cpp` | 5개 시퀀스 바이트 비교 (17 tests) |
-| `tools/sed_compare/` | sedutil-cli 13개 명령 byte-identity 증명 |
+| `tests/integration/ioctl_validator.cpp` | 5개 시퀀스 바이트 비교 (17 tests) — sanity 레벨 |
+| `tests/integration/golden_validator.cpp` | 실 HW fixture 와 byte-identity 비교 (decisive) |
 | `examples/12_factory_reset.cpp` | PSID/SID Revert 예제 |
 | `examples/19_multi_session.cpp` | 멀티 세션/에이징 예제 |

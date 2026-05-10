@@ -40,7 +40,11 @@ static std::string EM_PW;
 
 static bool scenario1_checkEnterprise(std::shared_ptr<ITransport> transport,
                                        uint16_t comId) {
-    scenario(1, "Check for Enterprise SSC");
+    scenarioIntent(1, "Check for Enterprise SSC",
+        { "Discovery 의 primary SSC 가 Enterprise 인지 확인.",
+          "아니면 이 example 의 나머지 시나리오는 모두 skip — Opal 은 06-08 참조." },
+        { "Drive SSC type 출력",
+          "Enterprise 면 true, 아니면 skip 메시지" });
 
     EvalApi api;
     DiscoveryInfo info;
@@ -66,7 +70,13 @@ static bool scenario1_checkEnterprise(std::shared_ptr<ITransport> transport,
 
 static bool scenario2_configureBand(std::shared_ptr<ITransport> transport,
                                      uint16_t comId) {
-    scenario(2, "Configure Band 1");
+    scenarioIntent(2, "Configure Band 1",
+        { "Enterprise 의 BandMaster1 / EraseMaster 비번 설정 + Band 1 영역 정의.",
+          "(Opal 의 Range 와 대응되는 개념 — Band, BandMaster, EraseMaster 트리오)" },
+        { "takeOwnership 성공",
+          "BandMaster1 / EraseMaster 비번 set OK",
+          "BandMaster1 권한으로 configureBand(1, 0..2047, RLE/WLE) 성공",
+          "getBandInfo(1) 로 readback 일치" });
 
     EvalApi api;
 
@@ -122,7 +132,10 @@ static bool scenario2_configureBand(std::shared_ptr<ITransport> transport,
 
 static bool scenario3_lockUnlock(std::shared_ptr<ITransport> transport,
                                   uint16_t comId) {
-    scenario(3, "Band Lock/Unlock");
+    scenarioIntent(3, "Band Lock/Unlock",
+        { "BandMaster1 권한으로 lockBand → readback → unlockBand → readback." },
+        { "lockBand(1) 성공, readback: read/write locked = 1",
+          "unlockBand(1) 성공, readback: read/write locked = 0" });
 
     EvalApi api;
     Bytes bm1Pw = pwBytes(BM1_PW);
@@ -155,7 +168,11 @@ static bool scenario3_lockUnlock(std::shared_ptr<ITransport> transport,
 
 static bool scenario4_eraseMaster(std::shared_ptr<ITransport> transport,
                                    uint16_t comId) {
-    scenario(4, "EraseMaster Band Erase");
+    scenarioIntent(4, "EraseMaster Band Erase",
+        { "EraseMaster 권한으로 eraseBand(1) — band 의 키를 즉시 재생성.",
+          "= crypto erase, band 안의 모든 데이터를 한 명령으로 폐기." },
+        { "EraseMaster 권한으로 세션 open",
+          "eraseBand(1) 성공" });
 
     EvalApi api;
     Bytes emPw = pwBytes(EM_PW);
@@ -173,7 +190,9 @@ static bool scenario4_eraseMaster(std::shared_ptr<ITransport> transport,
 }
 
 static bool cleanup(std::shared_ptr<ITransport> transport, uint16_t comId) {
-    scenario(0, "Cleanup");
+    scenarioIntent(0, "Cleanup",
+        { "Enterprise 시연으로 변형된 SP 상태를 모두 되돌림." },
+        { "composite::revertToFactory 성공" });
     EvalApi api;
     auto cr = composite::revertToFactory(api, transport, comId, SID_PW);
     step(1, "RevertToFactory", cr.overall);

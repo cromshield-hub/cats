@@ -31,7 +31,13 @@ static std::string SID_PW;
 
 static bool scenario1_fullQueryRaw(std::shared_ptr<ITransport> transport,
                                     uint16_t comId) {
-    scenario(1, "Full Query Flow with Raw Payloads");
+    scenarioIntent(1, "Full Query Flow with Raw Payloads",
+        { "Discovery → Properties → Anonymous session → MSID 까지의 query 흐름을",
+          "EvalApi 만으로 단계별로 직접 호출 + RawResult 로 송수신 페이로드 노출." },
+        { "Discovery / Properties 성공 + MaxComPacketSize 출력",
+          "익명 세션 open, TSN/HSN 표시",
+          "getCPin(MSID) 성공 + 송수신 payload 크기 + first 64B hex dump",
+          "CloseSession 성공" });
 
     EvalApi api;
 
@@ -87,7 +93,11 @@ static bool scenario1_fullQueryRaw(std::shared_ptr<ITransport> transport,
 
 static bool scenario2_explicitStartSession(std::shared_ptr<ITransport> transport,
                                             uint16_t comId) {
-    scenario(2, "Explicit StartSession/SyncSession");
+    scenarioIntent(2, "Explicit StartSession/SyncSession",
+        { "sendStartSession + recvSyncSession 으로 두 단계를 분리해 호출 — HSN 을",
+          "직접 지정하고 sent payload 도 받아본다." },
+        { "sendStartSession (HSN=42) 성공",
+          "recvSyncSession 성공, TPer-assigned TSN 출력, HSN echo 확인" });
 
     EvalApi api;
 
@@ -127,7 +137,11 @@ static bool scenario2_explicitStartSession(std::shared_ptr<ITransport> transport
 
 static bool scenario3_genericTable(std::shared_ptr<ITransport> transport,
                                     uint16_t comId) {
-    scenario(3, "Generic Table Get/Set");
+    scenarioIntent(3, "Generic Table Get/Set",
+        { "tableGetAll / tableGetColumn 으로 임의 테이블·임의 컬럼 read.",
+          "method-typed accessor (getCPin 등) 외에 wildcard 경로." },
+        { "tableGetAll(CPIN_MSID) 성공, columns 단위 type/value 출력",
+          "tableGetColumn(MSID, col=3 = PIN) 성공, hex 출력" });
 
     EvalApi api;
     Session session(transport, comId);
@@ -169,7 +183,13 @@ static bool scenario3_genericTable(std::shared_ptr<ITransport> transport,
 
 static bool scenario4_ownershipRaw(std::shared_ptr<ITransport> transport,
                                     uint16_t comId) {
-    scenario(4, "Take Ownership — Inspecting Every Step");
+    scenarioIntent(4, "Take Ownership — Inspecting Every Step",
+        { "takeOwnership 의 모든 단계를 EvalApi 로 분해해서 호출 — 각 단계의 송수신",
+          "payload 크기 확인. 끝나면 같은 흐름으로 cleanup revert." },
+        { "Read MSID via withAnonymousSession 성공",
+          "SID auth (MSID) 성공",
+          "setCPin(SID, newPw) 성공 + send/recv payload 크기 출력",
+          "Cleanup: revertSP(SP_ADMIN) 성공" });
 
     EvalApi api;
 

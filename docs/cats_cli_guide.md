@@ -1,5 +1,8 @@
 # cats-cli 사용자 가이드
 
+> **Audience:** TC Developer
+> **See also:** `cats_cli_transaction_schema.md` (JSON schema), `tc_authoring_guide.md` (TC 저작 패턴)
+
 cats-cli는 libsed(`cats`) 위에 얹은 **평가/디버깅 전용 커맨드라인 도구**다. `sedutil-cli`가 production 잠금/해제에 집중한다면, cats-cli는 NVMe/SED 펌웨어 개발자·QA·보안 평가자를 위한 **프로토콜 아날라이저 + 결함 주입 + 스크립트 실행** 플랫폼을 지향한다.
 
 ## 빠른 시작

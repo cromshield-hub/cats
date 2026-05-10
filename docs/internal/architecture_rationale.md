@@ -1,5 +1,8 @@
 # NVMe + SED 이중 평가를 위한 인터페이스 분리 설계
 
+> **Audience:** Library Maintainer
+> **See also:** `hammurabi_code.md`, `postmortem_sedutil_compat.md`
+>
 > **목적:** 기존 스파게티 코드에서 ITransport에 몰려있는 NVMe/SED API를 역할별로 분리하여,
 > NVMe 평가와 SED 평가를 동시에 수행할 수 있는 깔끔한 구조를 제시한다.
 
