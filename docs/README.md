@@ -85,11 +85,11 @@ The tools in [`../tools/`](../tools/) have the byte-level answers.
 - `tools/cats-cli/` — full evaluation CLI (see `cats_cli_guide.md`).
 - `tools/packet_decode.cpp` — decode a captured hex stream into a
   ComPacket header + token tree (the recommended tool for analysing
-  user-captured wire dumps).
+  user-captured wire dumps). Pass `--tokens` to skip ComPacket framing
+  and decode an inline hex literal / stdin / binary file as a raw TCG
+  token stream (this replaces the retired `token_dump`).
 - `tools/pwhash.cpp` — produce SHA-256 / PBKDF2-HMAC-SHA1 hashes of a
   password (for cross-tool PIN comparison; see LAW 21).
-- `tools/token_dump.cpp` — decode a hex stream into TCG tokens (lighter
-  than `packet_decode`).
 - For decisive wire validation, run `./build/tests/golden_validator`
   against `tests/fixtures/golden/*.bin` (real-hardware capture).
   `sed_compare` was retired in 2026-05 — see

@@ -73,7 +73,7 @@ cd build && ctest
 |--------|---------|-------------|
 | `LIBSED_BUILD_TESTS` | ON | Unit + scenario + integration tests |
 | `LIBSED_BUILD_EXAMPLES` | ON | 20 example programs in `examples/` |
-| `LIBSED_BUILD_TOOLS` | ON | CLI tools (`cats-cli`, `sed_discover`, `sed_manage`, `token_dump`, `packet_decode`, `pwhash`) |
+| `LIBSED_BUILD_TOOLS` | ON | CLI tools (`cats-cli`, `packet_decode`, `pwhash`) |
 | `LIBSED_BUILD_SHARED` | OFF | Shared (ON) vs static (OFF) library |
 
 ## Install
@@ -102,7 +102,7 @@ include/libsed/      Public headers
   ssc/               Opal / Enterprise / Pyrite convenience layers
 src/                 Implementation
 examples/            01-20 progressive learning examples
-tools/               cats-cli, sed_discover, sed_manage, token_dump, packet_decode, pwhash
+tools/               cats-cli, packet_decode, pwhash
 tests/               Unit, scenario, integration, mock/simulator transports
 docs/                Documentation — start at docs/README.md
 third_party/sedutil/ Subset of sedutil-cli sources used by ioctl_validator

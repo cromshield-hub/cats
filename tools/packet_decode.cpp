@@ -1,11 +1,20 @@
 /// @file packet_decode.cpp
 /// CLI tool: hex-dump 파일을 읽어 rosetta_stone.md 형식으로 디코드
 ///
-/// 입력 형식:
-///   - 각 라인: "[주소(: 선택)]  hex bytes..." (예: "0000: 0000 0000 1004 ...")
+/// 기본 모드 (ComPacket framing):
+///   - 입력은 hex-dump 파일. 각 라인: "[주소(: 선택)]  hex bytes..."
 ///   - 주소는 0000, 0000:, 0x0000:, 0x0000 모두 허용
 ///   - 빈 줄 / '#' 주석 / '>>>' / '<<<' 로 시작하는 라인은 패킷 경계
 ///   - 주소가 0으로 돌아오면 새 패킷으로 간주
+///   - ComPacket(20B) + Packet(24B) + SubPacket(12B) + token payload 로 해석
+///
+/// --tokens 모드 (raw token stream, 구 token_dump 흡수):
+///   - 프레임 헤더 없이 입력 전체를 TCG 토큰 스트림으로 디코드
+///   - 입력 소스:
+///       packet_decode --tokens "<hex literal>"      (inline)
+///       packet_decode --tokens -                    (stdin, hex text)
+///       packet_decode --tokens -f <binary_file>     (raw binary)
+///       packet_decode --tokens --hexfile <path>     (hex-text file)
 
 #include <libsed/codec/token_decoder.h>
 #include <libsed/core/uid.h>
@@ -485,22 +494,108 @@ static std::vector<RawPacket> splitPackets(std::istream& in) {
     return packets;
 }
 
-// ───────────────────────────── main ─────────────────────────────
+// ───────────────────────────── --tokens 모드 helpers ─────────────────────────────
 
-int main(int argc, char* argv[]) {
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <hexdump_file> [-o output]\n\n"
-                  << "입력 파일은 다음과 같은 hex-dump 라인을 포함:\n"
-                  << "  0000: 0000 0000 1004 0000 ...\n"
-                  << "  0010  0000 0048 0000 1060 ...\n"
-                  << "빈 줄 / '#' 주석 / '>>>' / '<<<' 는 패킷 경계.\n"
-                  << "주소가 0으로 되돌아오면 다음 패킷으로 간주됩니다.\n";
+// hex 문자만 추려 바이트로 변환. parseHexBytes 와 달리 ASCII sidecar / '|' 처리
+// 없이 단순 hex 문자열을 받음. 공백/콜론/'-' 류는 무시.
+static std::vector<uint8_t> hexLiteralToBytes(const std::string& in) {
+    std::string s;
+    for (char c : in) {
+        if (isHexDigit(c)) s += c;
+        // 공백, 콜론, 대시, 줄바꿈 모두 구분자로 무시. 그 외 비-hex 문자는 종료.
+        else if (c != ' ' && c != '\t' && c != '\n' && c != '\r' &&
+                 c != ':' && c != '-' && c != ',') {
+            break;
+        }
+    }
+    std::vector<uint8_t> out;
+    for (size_t i = 0; i + 1 < s.size(); i += 2) {
+        out.push_back(static_cast<uint8_t>(std::stoul(s.substr(i, 2), nullptr, 16)));
+    }
+    return out;
+}
+
+static int runTokensMode(const std::vector<uint8_t>& payload, std::ostream& out) {
+    if (payload.empty()) {
+        std::cerr << "error: no data to decode\n";
         return 1;
     }
+    out << "# Token stream (" << payload.size() << " bytes)\n";
+    out << "  raw: " << hexString(payload, 64) << "\n\n";
+    TokenDecoder dec;
+    auto r = dec.decode(payload.data(), payload.size());
+    if (r.failed()) {
+        std::cerr << "decode error: " << r.message() << "\n";
+        return 1;
+    }
+    out << "# " << dec.count() << " token(s)\n";
+    printTokens(dec.tokens(), out);
+    return 0;
+}
+
+// ───────────────────────────── main ─────────────────────────────
+
+static void usage(const char* prog) {
+    std::cerr <<
+        "Usage:\n"
+        "  " << prog << " <hexdump_file> [-o output]            ComPacket framing (default)\n"
+        "  " << prog << " --tokens \"<hex literal>\"             Inline hex → tokens\n"
+        "  " << prog << " --tokens -                            stdin (hex text) → tokens\n"
+        "  " << prog << " --tokens -f <binary_file>             Binary file → tokens\n"
+        "  " << prog << " --tokens --hexfile <hex_text_file>    Hex text file → tokens\n"
+        "\n"
+        "Default mode reads hex-dump lines (rosetta_stone format), splits on\n"
+        "blank / '#' / '>>>' / '<<<' / address-wrap, and decodes each ComPacket.\n";
+}
+
+int main(int argc, char* argv[]) {
+    if (argc < 2) { usage(argv[0]); return 1; }
 
     // 디코드 에러를 Result로 받기 때문에 libsed의 stderr 로그는 무음 처리.
     libsed::Logger::instance().setLevel(libsed::LogLevel::None);
 
+    // ── --tokens 모드 ─────────────────────────────────────────────────
+    bool tokensMode = false;
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--tokens") == 0) { tokensMode = true; break; }
+    }
+
+    if (tokensMode) {
+        std::vector<uint8_t> payload;
+        bool sourceSet = false;
+        for (int i = 1; i < argc; ++i) {
+            std::string a = argv[i];
+            if (a == "--tokens") continue;
+            if (a == "-" && !sourceSet) {
+                std::string content((std::istreambuf_iterator<char>(std::cin)), {});
+                payload = hexLiteralToBytes(content);
+                sourceSet = true;
+            } else if (a == "-f" && i + 1 < argc) {
+                std::ifstream f(argv[++i], std::ios::binary);
+                if (!f) { std::cerr << "Cannot open: " << argv[i] << "\n"; return 1; }
+                payload.assign(std::istreambuf_iterator<char>(f), {});
+                sourceSet = true;
+            } else if (a == "--hexfile" && i + 1 < argc) {
+                std::ifstream f(argv[++i]);
+                if (!f) { std::cerr << "Cannot open: " << argv[i] << "\n"; return 1; }
+                std::string content((std::istreambuf_iterator<char>(f)), {});
+                payload = hexLiteralToBytes(content);
+                sourceSet = true;
+            } else if (!sourceSet) {
+                // Treat all remaining args as inline hex (allows shell to
+                // split "F0 A8 00" into 3 args without quoting).
+                std::string joined;
+                for (int j = i; j < argc; ++j) { joined += argv[j]; joined += ' '; }
+                payload = hexLiteralToBytes(joined);
+                sourceSet = true;
+                break;
+            }
+        }
+        if (!sourceSet) { usage(argv[0]); return 1; }
+        return runTokensMode(payload, std::cout);
+    }
+
+    // ── 기본: ComPacket framing 모드 ──────────────────────────────────
     std::string inPath = argv[1];
     std::string outPath;
     for (int i = 2; i < argc; ++i) {

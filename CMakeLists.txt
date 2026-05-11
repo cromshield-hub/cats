@@ -302,11 +302,10 @@ if(LIBSED_BUILD_TOOLS)
     # sed_discover / sed_manage removed — workflows now live in `cats-cli`
     # (drive discover / drive take-ownership / drive activate / drive setup /
     # range / user / band / mbr).
-    add_executable(token_dump       tools/token_dump.cpp)
+    # token_dump removed — folded into `packet_decode --tokens`.
     add_executable(packet_decode    tools/packet_decode.cpp)
     add_executable(pwhash           tools/pwhash.cpp)
 
-    target_link_libraries(token_dump   PRIVATE libsed)
     target_link_libraries(packet_decode PRIVATE libsed)
     target_link_libraries(pwhash       PRIVATE libsed)
 endif()
