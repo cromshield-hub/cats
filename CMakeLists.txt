@@ -299,13 +299,12 @@ if(LIBSED_BUILD_TOOLS)
         )
     endif()
 
-    add_executable(sed_discover     tools/sed_discover.cpp)
+    # sed_discover removed — superseded by `cats-cli drive discover`.
     add_executable(sed_manage       tools/sed_manage.cpp)
     add_executable(token_dump       tools/token_dump.cpp)
     add_executable(packet_decode    tools/packet_decode.cpp)
     add_executable(pwhash           tools/pwhash.cpp)
 
-    target_link_libraries(sed_discover PRIVATE libsed)
     target_link_libraries(sed_manage   PRIVATE libsed)
     target_link_libraries(token_dump   PRIVATE libsed)
     target_link_libraries(packet_decode PRIVATE libsed)
