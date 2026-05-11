@@ -348,6 +348,38 @@ int drive_psid_revert(Context& ctx, const std::string& psid) {
     return reportResult(ctx, "psid-revert", drive.psidRevert(psid));
 }
 
+// MSID → SID PIN 변경. MSID는 facade 내부에서 자동 읽기. --new-pw는 새 SID 비밀번호.
+int drive_take_ownership(Context& ctx, const std::string& newPw) {
+    if (int e = requireForce(ctx, "drive take-ownership"); e) return e;
+    if (newPw.empty()) { std::cerr << "error: --new-pw required\n"; return EC_USAGE; }
+    if (int e = ctx.init(); e) return e;
+    SedDrive drive(ctx.transport);
+    return reportResult(ctx, "take-ownership", drive.takeOwnership(newPw));
+}
+
+// LockingSP를 Issued → Manufactured(Active) 로 활성화. --password*는 SID 비밀번호.
+int drive_activate(Context& ctx) {
+    if (int e = requireForce(ctx, "drive activate"); e) return e;
+    if (int e = ctx.resolvePassword(); e) return e;
+    if (ctx.password.empty()) { std::cerr << "error: --password* (SID) required\n"; return EC_USAGE; }
+    if (int e = ctx.init(); e) return e;
+    SedDrive drive(ctx.transport);
+    return reportResult(ctx, "activate locking", drive.activateLocking(ctx.password));
+}
+
+// Take-ownership + Activate 워크플로우. 새 SID 비밀번호로 두 단계를 묶어 수행.
+// 활성화 후 Admin1 PIN은 SID와 동일(MSID 상속 모델 대신 신규 SID 사용 모델).
+int drive_setup(Context& ctx, const std::string& newPw) {
+    if (int e = requireForce(ctx, "drive setup"); e) return e;
+    if (newPw.empty()) { std::cerr << "error: --new-pw required\n"; return EC_USAGE; }
+    if (int e = ctx.init(); e) return e;
+    SedDrive drive(ctx.transport);
+    if (auto r = drive.takeOwnership(newPw); r.failed())
+        return reportResult(ctx, "take-ownership", r);
+    if (ctx.v() >= Verbosity::Info) std::cout << "  ✓ take-ownership ... Success\n";
+    return reportResult(ctx, "activate locking", drive.activateLocking(newPw));
+}
+
 int range_list(Context& ctx) {
     if (int e = ctx.resolvePassword(); e) return e;  // ensure password resolved for the early check below
     if (ctx.password.empty()) { std::cerr << "error: --password* (Admin1) required\n"; return EC_USAGE; }
@@ -672,6 +704,17 @@ int user_set_pw(Context& ctx, uint32_t userId, const std::string& newPw) {
     return reportResult(ctx, "user set-pw", s.setUserPassword(userId, newPw));
 }
 
+// enable + set-pw + assign 묶음. SedDrive::setupUser 한 번 호출.
+int user_setup(Context& ctx, uint32_t userId, uint32_t rangeId, const std::string& userPw) {
+    if (int e = ctx.resolvePassword(); e) return e;
+    if (ctx.password.empty())  { std::cerr << "error: --password* (Admin1) required\n"; return EC_USAGE; }
+    if (userPw.empty())        { std::cerr << "error: --new-pw (user password) required\n"; return EC_USAGE; }
+    if (int e = ctx.init(); e) return e;
+    SedDrive drive(ctx.transport);
+    return reportResult(ctx, "user setup",
+                        drive.setupUser(userId, userPw, rangeId, ctx.password));
+}
+
 // ── MBR enable / done ───────────────────────────────────────────────────────
 
 int mbr_enable(Context& ctx, bool on) {
@@ -818,6 +861,43 @@ int main(int argc, char** argv) {
     psidRev->add_option("--psid", psidValue, "PSID string printed on the drive label")->required();
     psidRev->callback([&]{ finalExit = cmd::drive_psid_revert(ctx, psidValue); });
 
+    // ── take-ownership / activate / setup (initial provisioning) ──
+    // The new SID password reuses the same --new-pw* trio as user set-pw so
+    // users learn one convention. --password* stays as "the existing auth pw"
+    // (here: SID for activate; unused for take-ownership/setup which start
+    // from MSID).
+    std::string newSidPw, newSidPwEnv, newSidPwFile;
+    auto addNewPwOpts = [&](CLI::App* sub) {
+        sub->add_option("--new-pw",      newSidPw,     "New SID password (literal)");
+        sub->add_option("--new-pw-env",  newSidPwEnv,  "New SID password from env var");
+        sub->add_option("--new-pw-file", newSidPwFile, "New SID password from file (first line)");
+    };
+    auto resolveNewPw = [&]() -> std::string {
+        std::string pw = newSidPw;
+        if (pw.empty() && !newSidPwEnv.empty()) {
+            const char* v = std::getenv(newSidPwEnv.c_str()); pw = v ? v : "";
+        }
+        if (pw.empty() && !newSidPwFile.empty()) {
+            std::ifstream f(newSidPwFile);
+            if (f) std::getline(f, pw);
+        }
+        return pw;
+    };
+
+    auto* takeOwn = drive->add_subcommand("take-ownership",
+        "MSID → SID PIN change (Destructive). New SID pw via --new-pw*");
+    addNewPwOpts(takeOwn);
+    takeOwn->callback([&]{ finalExit = cmd::drive_take_ownership(ctx, resolveNewPw()); });
+
+    auto* activate = drive->add_subcommand("activate",
+        "Activate Locking SP (Destructive). Auth: SID password via --password*");
+    activate->callback([&]{ finalExit = cmd::drive_activate(ctx); });
+
+    auto* setup = drive->add_subcommand("setup",
+        "take-ownership + activate, single new SID pw (Destructive). --new-pw* sets both SID and Admin1.");
+    addNewPwOpts(setup);
+    setup->callback([&]{ finalExit = cmd::drive_setup(ctx, resolveNewPw()); });
+
     auto* range = app.add_subcommand("range", "Locking Range operations");
     range->add_subcommand("list", "List ranges")->callback([&]{ finalExit = cmd::range_list(ctx); });
     
@@ -875,6 +955,29 @@ int main(int argc, char** argv) {
             if (f) std::getline(f, pw);
         }
         finalExit = cmd::user_set_pw(ctx, setPwUserId, pw);
+    });
+
+    // user setup: enable + set-pw + assign(range) in one shot. Reuses set-pw's
+    // --new-pw* trio (newPw/newPwEnv/newPwFile) since it conveys the same
+    // "new user password" semantic.
+    uint32_t setupUserId = 0, setupRangeId = 0;
+    auto* uSetup = user->add_subcommand("setup",
+        "Enable user + set password + assign range (Destructive)");
+    uSetup->add_option("--id",    setupUserId,  "User ID")->required();
+    uSetup->add_option("--range", setupRangeId, "Range ID")->required();
+    uSetup->add_option("--new-pw",      newPw,       "User password (literal)");
+    uSetup->add_option("--new-pw-env",  newPwEnv,    "User password from env var");
+    uSetup->add_option("--new-pw-file", newPwFile,   "User password from file (first line)");
+    uSetup->callback([&]{
+        std::string pw = newPw;
+        if (pw.empty() && !newPwEnv.empty()) {
+            const char* v = std::getenv(newPwEnv.c_str()); pw = v ? v : "";
+        }
+        if (pw.empty() && !newPwFile.empty()) {
+            std::ifstream f(newPwFile);
+            if (f) std::getline(f, pw);
+        }
+        finalExit = cmd::user_setup(ctx, setupUserId, setupRangeId, pw);
     });
 
     auto* band = app.add_subcommand("band", "Enterprise Band operations");

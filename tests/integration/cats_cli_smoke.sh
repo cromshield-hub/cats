@@ -63,6 +63,28 @@ expect_exit 1 "mbr write without --force"   "$CLI" --sim -p pw mbr write --file 
 expect_exit 1 "raw-method without --force"  "$CLI" --sim eval raw-method --invoke 0x1 --method 0x2
 expect_exit 1 "psid-revert without --force" "$CLI" --sim drive psid-revert --psid PSID123
 expect_exit 1 "range setup without --force" "$CLI" --sim -p pw range setup --id 1 --start 0 --len 1000
+expect_exit 1 "take-ownership without --force" "$CLI" --sim drive take-ownership --new-pw newpw
+expect_exit 1 "drive activate without --force" "$CLI" --sim -p pw drive activate
+expect_exit 1 "drive setup without --force"    "$CLI" --sim drive setup --new-pw newpw
+
+# Missing required password inputs for the new workflow commands.
+expect_exit 1 "take-ownership missing --new-pw" "$CLI" --sim --force drive take-ownership
+expect_exit 1 "drive activate missing --password" "$CLI" --sim --force drive activate
+expect_exit 1 "drive setup missing --new-pw"    "$CLI" --sim --force drive setup
+expect_exit 1 "user setup missing --range"      "$CLI" --sim -p pw user setup --id 1 --new-pw upw
+expect_exit 1 "user setup missing --new-pw"     "$CLI" --sim -p pw user setup --id 1 --range 0
+
+# Happy paths against SimTransport. take-ownership/setup do not need a prior
+# password (they start from MSID); activate/user-setup need Admin-level auth
+# which SimTransport may answer with EC_TCG_METHOD(3) — accept {0,3}.
+expect_exit 0 "drive take-ownership ok" "$CLI" --sim --force drive take-ownership --new-pw setuppw
+expect_exit 0 "drive setup ok"          "$CLI" --sim --force drive setup --new-pw setuppw
+"$CLI" --sim --force -p mypw drive activate >/dev/null 2>&1; ec=$?
+if [[ "$ec" == "0" || "$ec" == "3" ]]; then echo "  OK   drive activate parses (exit=$ec)"; PASS=$((PASS+1)); \
+    else echo "  FAIL drive activate (exit=$ec)"; FAIL=$((FAIL+1)); fi
+"$CLI" --sim -p apw user setup --id 1 --range 0 --new-pw upw >/dev/null 2>&1; ec=$?
+if [[ "$ec" == "0" || "$ec" == "3" ]]; then echo "  OK   user setup parses (exit=$ec)"; PASS=$((PASS+1)); \
+    else echo "  FAIL user setup (exit=$ec)"; FAIL=$((FAIL+1)); fi
 
 # ── Author-added commands also register and route ──
 #    SimTransport can return EC_TCG_METHOD(3) for operations it doesn't

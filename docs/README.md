@@ -90,9 +90,6 @@ The tools in [`../tools/`](../tools/) have the byte-level answers.
   password (for cross-tool PIN comparison; see LAW 21).
 - `tools/token_dump.cpp` — decode a hex stream into TCG tokens (lighter
   than `packet_decode`).
-- `tools/sed_manage.cpp` — admin CLI for ownership / activate / setup
-  workflows not yet ported to `cats-cli` (lock / revert / user
-  management are also available via `cats-cli`).
 - For decisive wire validation, run `./build/tests/golden_validator`
   against `tests/fixtures/golden/*.bin` (real-hardware capture).
   `sed_compare` was retired in 2026-05 — see

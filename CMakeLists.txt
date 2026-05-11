@@ -299,13 +299,13 @@ if(LIBSED_BUILD_TOOLS)
         )
     endif()
 
-    # sed_discover removed — superseded by `cats-cli drive discover`.
-    add_executable(sed_manage       tools/sed_manage.cpp)
+    # sed_discover / sed_manage removed — workflows now live in `cats-cli`
+    # (drive discover / drive take-ownership / drive activate / drive setup /
+    # range / user / band / mbr).
     add_executable(token_dump       tools/token_dump.cpp)
     add_executable(packet_decode    tools/packet_decode.cpp)
     add_executable(pwhash           tools/pwhash.cpp)
 
-    target_link_libraries(sed_manage   PRIVATE libsed)
     target_link_libraries(token_dump   PRIVATE libsed)
     target_link_libraries(packet_decode PRIVATE libsed)
     target_link_libraries(pwhash       PRIVATE libsed)
