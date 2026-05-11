@@ -60,6 +60,9 @@ int main(int argc, char* argv[]) {
     std::string saltAscii;
     bool saltHexSet = false, saltAsciiSet = false;
     std::string password;
+    uint32_t iterations = 75000;
+    uint32_t keyLen = 32;
+    std::string algo = "sha1"; // sha1 (sedutil 기본) | sha256
 
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
@@ -69,6 +72,15 @@ int main(int argc, char* argv[]) {
         }
         else if (a == "--salt-ascii" && i + 1 < argc) {
             saltAscii = argv[++i]; saltAsciiSet = true;
+        }
+        else if (a == "--iter" && i + 1 < argc) {
+            iterations = static_cast<uint32_t>(std::strtoul(argv[++i], nullptr, 10));
+        }
+        else if (a == "--keylen" && i + 1 < argc) {
+            keyLen = static_cast<uint32_t>(std::strtoul(argv[++i], nullptr, 10));
+        }
+        else if (a == "--algo" && i + 1 < argc) {
+            algo = argv[++i]; // sha1 | sha256
         }
         else if (a == "-h" || a == "--help") {
             std::printf("Usage:\n"
@@ -113,7 +125,12 @@ int main(int argc, char* argv[]) {
             salt.assign(saltAscii.begin(), saltAscii.end());
         }
 
-        auto pin = HashPassword::sedutilHash(password, salt);
+        Bytes pin;
+        if (algo == "sha256") {
+            pin = HashPassword::pbkdf2Sha256(password, salt, iterations, keyLen);
+        } else { // sha1 default
+            pin = HashPassword::sedutilHash(password, salt, iterations, keyLen);
+        }
         std::printf("# password = \"%s\"\n", password.c_str());
         std::printf("# salt (%zu B): ", salt.size());
         for (auto b : salt) {
@@ -124,8 +141,10 @@ int main(int argc, char* argv[]) {
         std::printf("# salt hex: ");
         for (auto b : salt) std::printf("%02x", b);
         std::printf("\n");
-        std::printf("# algorithm = PBKDF2-HMAC-SHA1, iter=75000, keyLen=32\n");
-        std::printf("PIN bytes (32 B):\n  ");
+        std::printf("# algorithm = PBKDF2-HMAC-%s, iter=%u, keyLen=%u\n",
+                    algo == "sha256" ? "SHA256" : "SHA1",
+                    iterations, keyLen);
+        std::printf("PIN bytes (%u B):\n  ", keyLen);
         printSpacedHex(pin);
         std::printf("PIN bytes (no spaces):\n  ");
         printHex(pin);
