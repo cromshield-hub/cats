@@ -11,11 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 - **`tools/cats-cli/`** — TCG SED evaluation & debugging CLI, ship-ready.
-  Subcommand tree: `drive discover|msid|revert|psid-revert`,
-  `range list|setup|lock|erase`, `band list`, `user list|enable|assign|set-pw`,
-  `mbr status|enable|done|write`, `eval tx-start|table-get|raw-method|transaction`.
+  Subcommand tree: `drive discover|msid|take-ownership|activate|setup|revert|psid-revert`,
+  `range list|setup|lock|erase`, `band list|setup|erase`,
+  `user list|enable|assign|set-pw|setup`,
+  `mbr status|enable|done|write`, `eval tx-start|table-get|raw-method|transaction|fault-list`.
   All destructive ops gated by `--force` via a common helper. Exit-code
   schema 0–5 (EC_USAGE / EC_TRANSPORT / EC_TCG_METHOD / EC_AUTH / EC_NOT_SUPPORTED).
+  Provisioning commands (`drive take-ownership / activate / setup`,
+  `user setup`) absorb the workflows previously hosted in the retired
+  `sed_manage`. Two password-input trios: `--password*` (current auth)
+  and `--new-pw*` (destination credential) — see `cats_cli_guide.md`.
   Closed-network: CLI11 2.3.2 + nlohmann/json 3.11.3 vendored at
   `third_party/`.
 - **`eval transaction <script.json>`** — JSON script runner executing
@@ -38,8 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   carries Admin1-4 alongside User1-8.
 - **`docs/cats_cli_guide.md`**, **`docs/cats_cli_transaction_schema.md`** —
   user-facing documentation.
-- **`tests/integration/cats_cli_smoke.sh`** — 46-case SimTransport smoke
-  (registered in CTest as `cats_cli_smoke`).
+- **`tests/integration/cats_cli_smoke.sh`** — 58-case SimTransport smoke
+  (registered in CTest as `cats_cli_smoke`). 12 of those cases pin the
+  new provisioning commands' `--force` gates, missing-option paths, and
+  `--new-pw*` routing.
 - **`band setup --id --start --len` / `band erase --id`** — Enterprise
   SSC band lifecycle on the CLI. Both gated by `--force`. Builds on
   `SedDrive::eraseBand()` (new) and existing `configureBand()`.
@@ -66,7 +73,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   Default argument keeps existing callers at commit.
 
 ### Deprecated / Removed
-- None.
+- **`tools/sed_discover.cpp`** — superseded by `cats-cli drive discover`,
+  which produces the same summary plus `--json` and `--verbosity` output
+  channels.
+- **`tools/sed_manage.cpp`** — workflows (take-ownership / activate /
+  setup / setup-user) ported into `cats-cli` (`drive take-ownership /
+  activate / setup`, `user setup`). The two-password `setup <sid_pw>
+  <admin1_pw>` shape collapsed to a single `--new-pw*` because Admin1
+  PIN inherits from SID at activation time.
+- **`tools/token_dump.cpp`** — folded into `packet_decode --tokens`,
+  which now accepts inline hex (`--tokens "F0 A8 ..."`), stdin (`--tokens
+  -`), binary files (`--tokens -f <bin>`), and hex-text files
+  (`--tokens --hexfile <path>`). The hosting tool already had richer
+  UID-name and method-status decoding, so no output features were lost.
 
 ### Added (earlier pre-Unreleased items)
 - `tools/sed_compare/` — byte-for-byte packet comparison against sedutil-cli
