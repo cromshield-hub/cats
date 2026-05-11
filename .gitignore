@@ -1,5 +1,7 @@
 # ── Build & IDE ─────────────────────────────────────────────
 build/
+# CTest output when invoked from repo root (e.g. `ctest --test-dir build`)
+Testing/
 *.d
 *.slo
 *.lo
