@@ -3,6 +3,105 @@
 > **Audience:** Library Maintainer
 > **See also:** `postmortem_sedutil_compat.md` (Session 2026-04-27~05-07 의 narrative 요약), `hammurabi_code.md` (도출된 LAW)
 
+## Session 2026-05-11 — tools/ 정리 + cats-cli provisioning 명령 4 개 추가
+
+### What was done
+
+1. **`tools/sed_discover.cpp` 제거** (`8221b60`) — 48 LoC, `SedDrive::query()`
+   한 번 호출 후 출력하는 단순 래퍼. `cats-cli drive discover` 가 동일
+   기능을 `--json` / `--verbosity` 출력 채널과 함께 제공하므로 100 % 중복.
+   CMakeLists, `docs/README.md` 동기화.
+2. **cats-cli 에 sed_manage 워크플로우 이식** (`69ec6a7`) — sed_manage 가
+   보유하던 명령 중 cats-cli 에 없던 4 개를 추가:
+   - `drive take-ownership --new-pw*` — MSID → SID PIN 변경
+   - `drive activate` — Locking SP 활성화 (auth: `--password*`)
+   - `drive setup --new-pw*` — take-ownership + activate 묶음
+   - `user setup --id --range --new-pw*` — enable + set-pw + assign
+   `tools/sed_manage.cpp` 제거. 스모크 케이스 12 개 추가 (46 → 58 pass).
+3. **`tools/token_dump.cpp` → `packet_decode --tokens`** (`e2141f9`) —
+   packet_decode 에 `--tokens` 모드 추가. 4 가지 입력 (inline hex /
+   stdin / `-f` binary / `--hexfile`) 모두 흡수. packet_decode 가 이미
+   UID 이름 / 메서드 상태 / 토큰 트리 사전을 갖고 있어 출력 풍부도는
+   token_dump 보다 상위 — 기능 손실 0.
+4. **`docs/cats_cli_guide.md` 갱신** (`d136a7e`) — 명령 트리에 신규 4 개
+   추가, `--password*` vs `--new-pw*` 두 트리오 분리 설명 (어느 명령이
+   어느 트리오를 쓰는지 매핑 표), 파괴 명령 목록 갱신, MoT 노트 4 건
+   신설 (멱등 아님, 인증 입력 헷갈림, user setup 사전 조건), 자동화
+   레시피에 "초기 provisioning 3 단계" 예시 신설.
+5. **`CHANGELOG.md` Unreleased 갱신** (`2bd864b`) — cats-cli 서브커맨드
+   트리 재인용 라인, 스모크 카운트 46→58, Deprecated/Removed 에
+   sed_discover / sed_manage / token_dump 사유 추가.
+
+### 설계 결정 메모
+
+- **`drive setup` 의 SID == Admin1 PIN 단순화**: sed_manage 의 원본은
+  `setup <sid_pw> <admin1_pw>` 로 두 비밀번호를 받았으나 TCG Opal 활성화
+  직후 Admin1 PIN 은 어차피 SID 와 동일하므로 두 번째 인자가 그 시점에
+  의미를 가지지 못함. cats-cli 에서는 단일 `--new-pw*` 로 통합. SID 와
+  Admin1 PIN 을 분리하려는 시나리오는 take-ownership → activate → set-pw
+  를 따로 호출하면 가능.
+- **`--new-pw*` 트리오의 일관성**: `user set-pw` 가 이미 같은 트리오를
+  사용 중이었음. provisioning 명령들도 동일 트리오를 채택해 사용자가
+  한 가지 패턴만 익히면 되도록. `--password*` (인증) vs `--new-pw*`
+  (목적지) 의미 분리는 가이드 문서에 매핑 표로 명시.
+- **`token_dump` 통합 방식**: `packet_decode --tokens` 가 ComPacket 헤더
+  파싱을 건너뛰고 입력 전체를 `TokenDecoder` 로 흘리는 형태. 기존
+  `packet_decode <hexdump_file>` 의 default behaviour 는 변경 없음 —
+  하위 호환 100 %.
+
+### sed_manage 의 잔여 명령 처리
+
+- `range-info` → `range list` 가 모든 Range 상태 요약을 출력해 대체.
+  `range-info` 의 user-별 auth 선택은 평가 시나리오 가치가 낮아 미이식.
+- `lock` / `unlock` → 이미 `range lock --read on/off --write on/off` 로
+  granular 제어 제공.
+- `configure-range` / `crypto-erase` / `revert` / `psid-revert` → 이미
+  `range setup` / `range erase` / `drive revert` / `drive psid-revert` 로
+  cats-cli 에 있었음.
+
+### 검증
+
+- `cmake --build build` 클린 성공.
+- `cats_cli_smoke.sh` — 58 pass / 2 fail. 2 fail 은 Termux 의 `/tmp`
+  쓰기 권한 부재 (`/tmp/cats_smoke_pw.txt` 등) 로, 이번 변경과 무관한
+  환경 이슈. Linux CI 환경에서는 fail 0 예상.
+- `--new-pw-env` 경로 환경변수 검증: `ADMIN_PW=mysecretpw drive setup
+  --new-pw-env ADMIN_PW` 정상 라우팅, 미설정 env 는 `EC_USAGE` 반환.
+- `packet_decode --tokens` 4 가지 입력 모드 모두 검증 (inline / stdin /
+  `-f` binary / `--hexfile`). 기본 ComPacket 모드는 합성 패킷으로 회귀
+  확인 — ComPacket(20) + Packet(24) + SubPacket(12) + token payload 정상
+  디코드.
+
+### 핵심 변경 파일
+
+| 파일 | 역할 |
+|------|------|
+| `tools/cats-cli/main.cpp` | 신규 명령 4 개 + addNewPwOpts/resolveNewPw 헬퍼 |
+| `tools/packet_decode.cpp` | `--tokens` 모드 + `hexLiteralToBytes` / `runTokensMode` |
+| `tools/sed_discover.cpp` | 삭제 |
+| `tools/sed_manage.cpp` | 삭제 |
+| `tools/token_dump.cpp` | 삭제 |
+| `tests/integration/cats_cli_smoke.sh` | provisioning 명령 케이스 12 개 추가 |
+| `CMakeLists.txt` | 삭제된 tools 의 add_executable / target_link 정리 |
+| `docs/cats_cli_guide.md` | 명령 트리 + `--new-pw*` 트리오 + MoT + recipe |
+| `docs/README.md` | 도구 목록에서 sed_discover / sed_manage / token_dump 제거 |
+| `README.md` | tools 카탈로그 1 줄 동기화 |
+| `CHANGELOG.md` Unreleased | Added 트리 재인용 + Removed 사유 |
+
+### 결과 상태
+
+`tools/` 디렉토리: `cats-cli/`, `packet_decode.cpp`, `pwhash.cpp` 세 가지로
+정리. 각 도구의 역할 분리가 명확하다:
+
+- `cats-cli` — 라이브 드라이브 평가/디버깅 CLI (`SedDrive` facade +
+  `EvalApi` 기반).
+- `packet_decode` — 캡처된 와이어 덤프 분석 (ComPacket framing 또는
+  raw token stream).
+- `pwhash` — 비밀번호 해시 진단 (SHA-256 cats native / PBKDF2-HMAC-SHA1
+  sedutil-compat).
+
+---
+
 ## Session 2026-05-08 — TC 문서 정비 + sed_compare 폐기
 
 ### What was done
